@@ -1,23 +1,45 @@
-# nexus
+# NexusV2 Backend
 
-Nexus Laravel application.
+This is the Laravel/PHP backend repository for the NexusV2 project. It serves as the core API engine, handling AI integrations, background jobs, webhooks, and complex workflow orchestrations.
 
-## Setup
+## 🚀 Quick Start
 
-- Copy `.env.example` to `.env`
-- Run `composer install`
-- Run `npm install`
-- Run `php artisan key:generate`
+### Prerequisites
+- PHP 8.2+
+- Composer
+- MySQL/PostgreSQL
+- Redis (for Queues and Caching)
 
-## UI Polish & Performance
+### Installation
+```bash
+composer install
+```
 
-- Added route-based page transitions with a smooth slide/fade animation
-- Standardized loading states using shared loader components and skeleton placeholders
-- Improved hover effects, button press feedback, and micro-interactions across the UI
-- Added mobile haptic feedback with safe `navigator.vibrate` detection
-- Lazy-loaded analytics and provider onboarding components for better performance
-- Updated documentation and verification notes for final polish deployment
+### Environment Setup
+```bash
+cp .env.example .env
+php artisan key:generate
+```
+Configure your database credentials and Redis connection in `.env`.
 
-## License
+### Database & Migrations
+```bash
+php artisan migrate --seed
+```
 
-MIT
+### Running the Services
+To fully run the backend locally, you need three services running simultaneously:
+1. **API Server**: `php artisan serve`
+2. **Queue Worker**: `php artisan horizon` (or `php artisan queue:work`)
+3. **WebSockets (Reverb)**: `php artisan reverb:start`
+
+## 🏗️ Architecture
+- **Framework**: Laravel 11
+- **Design Pattern**: Domain-Driven Design (Hubs) - AgentsHub, ContactHub, AiModelsHub, etc.
+- **Async Engine**: Heavy reliance on Queues and Background Jobs for AI tasks and API rate-limiting.
+
+## 🤖 AI Development Guidelines (Antigravity/Cursor)
+When asking AI to modify this repository:
+1. Always reference the backend architecture documents and the specific Hub requirements.
+2. Write PHPUnit tests before implementing complex logic (TDD approach).
+3. Ensure no direct cross-hub database writes occur; always use Service contracts.
