@@ -23,22 +23,21 @@ class AsyncEngineFlowTest extends TestCase
         $contact = $conversation->contact;
 
         $response = $this->postJson('/api/v1/webhooks/waha', [
-            'conversation_id' => $conversation->id,
-            'message' => 'Hello from webhook',
-            'sender' => 'webhook_user',
-            'channel' => 'whatsapp',
-            'metadata' => ['source' => 'waha'],
+            'event' => 'message',
+            'session' => 'default',
+            'payload' => [
+                'id' => 'waha-msg-id-123',
+                'timestamp' => time(),
+                'from' => $contact->phone ?? '123456789@c.us',
+                'to' => '987654321@c.us',
+                'body' => 'Hello from webhook',
+            ],
         ]);
 
         $response->assertStatus(202)
-            ->assertJson([ 'message' => 'Webhook message queued for processing' ]);
+            ->assertJson([ 'message' => 'Webhook payload queued for processing' ]);
 
-        Bus::assertDispatched(ProcessAiInferenceJob::class, function ($job) use ($conversation) {
-            $reflection = new \ReflectionObject($job);
-            $property = $reflection->getProperty('conversationId');
-            $property->setAccessible(true);
-            return $property->getValue($job) == $conversation->id;
-        });
+        Bus::assertDispatched(\App\Jobs\ProcessWahaWebhookJob::class);
     }
 
     public function test_memory_index_endpoint_dispatches_extract_memory_job(): void

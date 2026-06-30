@@ -74,6 +74,7 @@ class SettingSeeder extends Seeder
             // Integrations - WAHA
             ['key' => 'waha_url', 'value' => '', 'type' => 'string', 'group' => 'integrations', 'description' => 'WAHA API URL', 'is_public' => false, 'is_encrypted' => false],
             ['key' => 'waha_api_key', 'value' => '', 'type' => 'string', 'group' => 'integrations', 'description' => 'WAHA API Key', 'is_public' => false, 'is_encrypted' => true],
+            ['key' => 'waha_webhook_secret', 'value' => '', 'type' => 'string', 'group' => 'integrations', 'description' => 'WAHA Webhook Secret', 'is_public' => false, 'is_encrypted' => true],
 
             // Feature Flags
             ['key' => 'feature_proactive_ai', 'value' => true, 'type' => 'boolean', 'group' => 'features', 'description' => 'Enable Proactive AI features', 'is_public' => false, 'is_encrypted' => false],

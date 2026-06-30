@@ -74,12 +74,22 @@ class TaskController extends Controller
         if ($request->has('due_at') && !$request->has('due_date')) {
             $input['due_date'] = $request->input('due_at');
         }
+        if ($request->has('dueDate') && !$request->has('due_date')) {
+            $input['due_date'] = $request->input('dueDate');
+        }
         if ($request->has('metadata') && !$request->has('payload_data')) {
             $metadata = $request->input('metadata');
             $input['payload_data'] = is_array($metadata) ? json_encode($metadata) : $metadata;
         }
         if (!$request->has('type')) {
             $input['type'] = 'agent';
+        }
+
+        if ($request->has('priority') && is_string($request->input('priority'))) {
+            $priorityMap = ['low' => 2, 'medium' => 5, 'high' => 8];
+            if (isset($priorityMap[$request->input('priority')])) {
+                $input['priority'] = $priorityMap[$request->input('priority')];
+            }
         }
 
         try {
@@ -123,6 +133,9 @@ class TaskController extends Controller
         if ($request->has('due_at') && !$request->has('due_date')) {
             $input['due_date'] = $request->input('due_at');
         }
+        if ($request->has('dueDate') && !$request->has('due_date')) {
+            $input['due_date'] = $request->input('dueDate');
+        }
         if ($request->has('metadata') && !$request->has('payload_data')) {
             $metadata = $request->input('metadata');
             $input['payload_data'] = is_array($metadata) ? json_encode($metadata) : $metadata;
@@ -134,6 +147,13 @@ class TaskController extends Controller
                 'paused' => 'blocked',
             ];
             $input['status'] = $statusMap[$request->input('status')] ?? $request->input('status');
+        }
+
+        if ($request->has('priority') && is_string($request->input('priority'))) {
+            $priorityMap = ['low' => 2, 'medium' => 5, 'high' => 8];
+            if (isset($priorityMap[$request->input('priority')])) {
+                $input['priority'] = $priorityMap[$request->input('priority')];
+            }
         }
 
         try {
@@ -233,12 +253,12 @@ class TaskController extends Controller
 
         $stats = [
             'total' => (clone $query)->count(),
-            'pending' => (clone $query)->where('status', 'pending')->count(),
-            'running' => (clone $query)->where('status', 'running')->count(),
+            'pending' => (clone $query)->where('status', 'todo')->count(),
+            'running' => (clone $query)->where('status', 'in-progress')->count(),
             'completed' => (clone $query)->where('status', 'completed')->count(),
             'failed' => (clone $query)->where('status', 'failed')->count(),
             'cancelled' => (clone $query)->where('status', 'cancelled')->count(),
-            'paused' => (clone $query)->where('status', 'paused')->count(),
+            'paused' => (clone $query)->where('status', 'blocked')->count(),
             'queue_stats' => $this->queue->getStats(),
         ];
 
@@ -248,7 +268,7 @@ class TaskController extends Controller
     public function getActive(Request $request)
     {
         $activeTasks = AgentTask::with(['agent', 'workflow'])
-            ->whereIn('status', ['pending', 'running'])
+            ->whereIn('status', ['todo', 'in-progress'])
             ->orderBy('priority', 'desc')
             ->orderBy('created_at', 'asc')
             ->get();
@@ -315,7 +335,19 @@ class TaskController extends Controller
      */
     public function updateStatus(Request $request, AgentTask $task)
     {
-        $validator = Validator::make($request->all(), [
+        $input = $request->all();
+        
+        // Normalize status
+        if (isset($input['status'])) {
+            $statusMap = [
+                'pending' => 'todo',
+                'running' => 'in-progress',
+                'paused' => 'blocked',
+            ];
+            $input['status'] = $statusMap[$input['status']] ?? $input['status'];
+        }
+
+        $validator = Validator::make($input, [
             'status' => 'required|in:todo,in-progress,blocked,completed,failed,cancelled',
         ]);
 

@@ -80,9 +80,6 @@ class SettingController extends Controller
         $this->encryptionService = $encryptionService;
         $this->validationService = $validationService;
         $this->seedRunnerService = $seedRunnerService;
-
-        // Apply authorization middleware to sensitive methods
-        $this->middleware('auth:sanctum');
     }
 
     /**
@@ -390,12 +387,12 @@ class SettingController extends Controller
 
         // Decrypt to get value
         $value = $setting->value;
-        if ($setting->is_encrypted) {
+        if ($setting->is_encrypted && !empty($value)) {
             $value = $this->encryptionService->decrypt($value);
         }
 
         // Mask the credential
-        $masked = $this->encryptionService->mask($value);
+        $masked = !empty($value) ? $this->encryptionService->mask($value) : null;
 
         return response()->json([
             'success' => true,
@@ -542,7 +539,7 @@ class SettingController extends Controller
         $validator = Validator::make($request->all(), [
             'settings' => ['required', 'array'],
             'settings.*.key' => ['required', 'string'],
-            'settings.*.value' => ['required'],
+            'settings.*.value' => ['nullable'],
         ]);
 
         if ($validator->fails()) {
@@ -588,6 +585,25 @@ class SettingController extends Controller
             'success' => true,
             'data' => $updated,
             'message' => count($updated) . ' settings updated.',
+        ]);
+    }
+
+    /**
+     * Get global agent pause status.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function getGlobalAgentPauseStatus(Request $request): JsonResponse
+    {
+        $setting = Setting::where('key', 'system.global_agent_pause')->first();
+        $enabled = $setting ? (bool) $setting->value : false;
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'enabled' => $enabled,
+            ],
         ]);
     }
 
@@ -876,6 +892,17 @@ class SettingController extends Controller
         $headers = $request->input('headers', []);
         $body = $request->input('body');
 
+        // Basic SSRF protection
+        $parsedUrl = parse_url($url);
+        $host = $parsedUrl['host'] ?? '';
+        
+        if (empty($host) || preg_match('/^(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+|::1)$/i', $host)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'SSRF Protection: Requests to private, loopback, or local IP addresses are blocked.',
+            ], 403);
+        }
+
         // Clean out empty headers and format as key-value
         $formattedHeaders = [];
         foreach ($headers as $header) {
@@ -888,7 +915,6 @@ class SettingController extends Controller
 
         try {
             $pendingRequest = \Illuminate\Support\Facades\Http::withHeaders($formattedHeaders)
-                ->withoutVerifying() // Useful for testing self-signed or local APIs
                 ->timeout(30);
 
             if (in_array($method, ['POST', 'PUT', 'PATCH'])) {
@@ -922,6 +948,153 @@ class SettingController extends Controller
                 'data' => [
                     'latency' => $latency,
                 ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Get the dynamic WAHA webhook URL.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function getWahaWebhookUrl(Request $request): JsonResponse
+    {
+        $appUrl = config('app.url', url('/'));
+        $webhookUrl = rtrim($appUrl, '/') . '/api/v1/webhooks/waha';
+
+        return response()->json([
+            'success' => true,
+            'webhook_url' => $webhookUrl,
+        ]);
+    }
+
+    /**
+     * Test the connection to the WAHA server.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function testWahaConnection(Request $request): JsonResponse
+    {
+        $url = $request->input('waha_url') 
+            ?? app(\App\Services\SettingCacheService::class)->get('waha_url')
+            ?? config('services.waha.url') 
+            ?? config('services.waha.api_url') 
+            ?? 'http://localhost:3000';
+        $key = $request->input('waha_api_key') 
+            ?? app(\App\Services\SettingCacheService::class)->get('waha_api_key')
+            ?? config('services.waha.api_key') 
+            ?? config('services.waha.api_token');
+
+        $url = rtrim($url, '/');
+        if (!preg_match('#^https?://#i', $url)) {
+            $url = 'http://' . $url;
+        }
+
+        try {
+            $client = \Illuminate\Support\Facades\Http::timeout(5);
+            if ($key) {
+                $client = $client->withHeaders([
+                    'Authorization' => "Bearer {$key}",
+                    'X-Api-Key' => $key,
+                ]);
+            }
+
+            $response = $client->get("{$url}/ping");
+
+            if ($response->successful()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Connection test passed. WAHA is reachable and authorized.',
+                    'status' => $response->status(),
+                    'details' => $response->json(),
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Connection test failed. WAHA returned status code: ' . $response->status(),
+                'response' => $response->body(),
+            ], 400);
+
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Connection test failed. Unable to reach WAHA server: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Test the webhook signature and endpoint responsiveness.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function testWahaWebhook(Request $request): JsonResponse
+    {
+        $webhookUrl = url('/api/v1/webhooks/waha');
+
+        $secret = $request->input('waha_webhook_secret') 
+            ?? app(\App\Services\SettingCacheService::class)->get('waha_webhook_secret')
+            ?? config('services.waha.webhook_secret');
+
+        $payload = [
+            'event' => 'message',
+            'session' => 'default',
+            'payload' => [
+                'id' => 'test_message_id_' . uniqid(),
+                'timestamp' => time(),
+                'from' => '1234567890@c.us',
+                'to' => '0987654321@c.us',
+                'body' => 'Webhook test ping from settings dashboard.',
+            ]
+        ];
+
+        $jsonPayload = json_encode($payload);
+
+        try {
+            $signature = '';
+            if ($secret) {
+                $signature = hash_hmac('sha512', $jsonPayload, $secret);
+            }
+
+            $internalRequest = \Illuminate\Http\Request::create(
+                $webhookUrl,
+                'POST',
+                [],
+                [],
+                [],
+                [
+                    'CONTENT_TYPE' => 'application/json',
+                    'HTTP_X_WEBHOOK_HMAC' => $signature ?? '',
+                    'HTTP_ACCEPT' => 'application/json',
+                ],
+                $jsonPayload
+            );
+
+            $response = app(\Illuminate\Contracts\Http\Kernel::class)->handle($internalRequest);
+
+            if ($response->getStatusCode() === 202) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Webhook test passed. The webhook endpoint successfully verified the signature and accepted the payload.',
+                    'status' => $response->getStatusCode(),
+                    'details' => json_decode($response->getContent(), true),
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Webhook test failed. Webhook handler returned status code: ' . $response->getStatusCode(),
+                'response' => $response->getContent(),
+            ], 400);
+
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Webhook test failed. Unable to reach webhook endpoint: ' . $e->getMessage(),
             ], 500);
         }
     }

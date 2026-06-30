@@ -17,6 +17,7 @@ class PayloadAdapterFactory
             case 'groq':
                 return $this->adaptForGroq($data);
             case 'google':
+            case 'gemini':
                 return $this->adaptForGoogle($data);
             default:
                 // Default to OpenAI format
@@ -37,6 +38,7 @@ class PayloadAdapterFactory
             case 'groq':
                 return $this->adaptGroqResponse($response);
             case 'google':
+            case 'gemini':
                 return $this->adaptGoogleResponse($response);
             default:
                 // Default to OpenAI format

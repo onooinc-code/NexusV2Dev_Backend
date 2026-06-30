@@ -248,7 +248,9 @@ class AiProviderController extends Controller
     public function syncModels(Request $request, $id)
     {
         try {
-            $provider = $this->providerRegistry->getProvider($id);
+            // Use AIProvider::find() directly to avoid the is_active gate in the registry
+            // and prevent dirty-attribute issues from resolved_api_key
+            $provider = \App\Models\AIProvider::find($id);
 
             if (!$provider) {
                 return response()->json([
@@ -280,8 +282,8 @@ class AiProviderController extends Controller
                 );
             }
 
-            // Update provider last_synced_at
-            $provider->update(['last_synced_at' => now()]);
+            // Use raw query update to avoid Eloquent dirty attribute pollution
+            \App\Models\AIProvider::where('id', $id)->update(['last_synced_at' => now()]);
 
             // Reload from DB to return current full list
             $syncedModels = \App\Models\AIModel::where('provider_id', $id)->orderBy('name')->get();
@@ -308,7 +310,8 @@ class AiProviderController extends Controller
     public function test(Request $request, $id)
     {
         try {
-            $provider = $this->providerRegistry->getProvider($id);
+            // Use direct find to bypass the is_active gate and avoid dirty-attribute issues
+            $provider = \App\Models\AIProvider::find($id);
 
             if (!$provider) {
                 return response()->json([
@@ -320,9 +323,23 @@ class AiProviderController extends Controller
             $restProvider = new DynamicRestProvider($id, $this->keyStorage);
             $health = $restProvider->getHealthStatus();
 
+            $isHealthy  = $health['status'] === 'healthy';
+
+            $errorDetail = isset($health['provider_error'])
+                ? ' — ' . substr($health['provider_error'], 0, 120)
+                : '';
+
+            $message = match ($health['status']) {
+                'healthy'   => 'Connection to provider successful',
+                'no_key'    => 'No API key configured — please add an API key to test this provider',
+                'unhealthy' => 'Provider returned HTTP ' . ($health['http_status'] ?? '?') . $errorDetail,
+                'offline'   => 'Connection failed: ' . ($health['error'] ?? 'unreachable'),
+                default     => 'Unable to determine provider status',
+            };
+
             return response()->json([
-                'success'   => $health['status'] === 'healthy',
-                'message'   => $health['status'] === 'healthy' ? 'Connection to provider successful' : 'Connection failed',
+                'success'   => $isHealthy,
+                'message'   => $message,
                 'status'    => $health['status'],
                 'data'      => $health,
                 'timestamp' => now()->toIso8601String(),

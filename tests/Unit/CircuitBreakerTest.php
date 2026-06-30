@@ -37,16 +37,20 @@ class CircuitBreakerTest extends TestCase
         $breaker = new CircuitBreaker('test-service', 2, 60);
 
         // First failure
-        $breaker->execute(function () {
-            throw new \Exception('First failure');
-        });
+        try {
+            $breaker->execute(function () {
+                throw new \Exception('First failure');
+            });
+        } catch (\Exception $e) {}
 
         $this->assertFalse($breaker->isOpen()); // Still closed
 
         // Second failure - should open the circuit
-        $breaker->execute(function () {
-            throw new \Exception('Second failure');
-        });
+        try {
+            $breaker->execute(function () {
+                throw new \Exception('Second failure');
+            });
+        } catch (\Exception $e) {}
 
         $this->assertTrue($breaker->isOpen()); // Now open
 
@@ -64,12 +68,16 @@ class CircuitBreakerTest extends TestCase
         $breaker = new CircuitBreaker('test-service', 2, 1); // 1 second timeout
 
         // Cause failures to open the circuit
-        $breaker->execute(function () {
-            throw new \Exception('Failure 1');
-        });
-        $breaker->execute(function () {
-            throw new \Exception('Failure 2');
-        });
+        try {
+            $breaker->execute(function () {
+                throw new \Exception('Failure 1');
+            });
+        } catch (\Exception $e) {}
+        try {
+            $breaker->execute(function () {
+                throw new \Exception('Failure 2');
+            });
+        } catch (\Exception $e) {}
 
         $this->assertTrue($breaker->isOpen());
 
@@ -91,12 +99,16 @@ class CircuitBreakerTest extends TestCase
         $breaker = new CircuitBreaker('test-service', 2, 1); // 1 second timeout
 
         // Cause failures to open the circuit
-        $breaker->execute(function () {
-            throw new \Exception('Failure 1');
-        });
-        $breaker->execute(function () {
-            throw new \Exception('Failure 2');
-        });
+        try {
+            $breaker->execute(function () {
+                throw new \Exception('Failure 1');
+            });
+        } catch (\Exception $e) {}
+        try {
+            $breaker->execute(function () {
+                throw new \Exception('Failure 2');
+            });
+        } catch (\Exception $e) {}
 
         $this->assertTrue($breaker->isOpen());
 

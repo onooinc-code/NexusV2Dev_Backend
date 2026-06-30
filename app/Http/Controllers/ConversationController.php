@@ -11,11 +11,17 @@ use Illuminate\Http\Request;
 
 class ConversationController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $conversations = Conversation::with(['contact', 'messages' => function($query) {
-            $query->latest()->take(1);
-        }])->orderByDesc('last_message_at')->get();
+        $query = Conversation::with(['contact', 'messages' => function($q) {
+            $q->latest()->take(1);
+        }]);
+
+        if ($request->has('contact_id')) {
+            $query->where('contact_id', $request->contact_id);
+        }
+
+        $conversations = $query->orderByDesc('last_message_at')->get();
         return response()->json(['data' => $conversations]);
     }
 

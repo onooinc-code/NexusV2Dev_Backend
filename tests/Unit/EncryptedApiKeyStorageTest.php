@@ -30,7 +30,7 @@ class EncryptedApiKeyStorageTest extends TestCase
 
         // Verify the key is encrypted in the database
         $this->assertNotEquals($apiKey, $storedKey->key_hash);
-        $this->assertStringNotContains('sk-test', $storedKey->key_hash);
+        $this->assertStringNotContainsString('sk-test', $storedKey->key_hash);
 
         // Verify we can decrypt and get the original key
         $retrievedKey = $storage->getDecryptedKey($provider->id);

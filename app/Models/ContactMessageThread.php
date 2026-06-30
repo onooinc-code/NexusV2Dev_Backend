@@ -9,7 +9,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ContactMessageThread extends Model
 {
-    use SoftDeletes;
+    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+use SoftDeletes;
 
     protected $fillable = [
         'contact_id',

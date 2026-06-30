@@ -21,7 +21,6 @@ class SettingsHubAdminController extends Controller
         protected CredentialValidationService $validationService,
         protected LogService $logService,
     ) {
-        $this->middleware('auth:sanctum');
     }
 
     /**

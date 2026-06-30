@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ContactAnalysisFinding extends Model
 {
-    use SoftDeletes;
+    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+use SoftDeletes;
 
     protected $fillable = [
         'contact_id',
@@ -19,11 +20,15 @@ class ContactAnalysisFinding extends Model
         'confidence',
         'confidence_score',
         'evidence_refs',
+        'evidence_references',
+        'source_message_ids',
         'metadata',
     ];
 
     protected $casts = [
         'evidence_refs' => 'array',
+        'evidence_references' => 'array',
+        'source_message_ids' => 'array',
         'metadata'      => 'array',
         'content'       => 'array',
         'confidence'    => 'decimal:2',

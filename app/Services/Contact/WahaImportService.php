@@ -8,10 +8,12 @@ use Carbon\Carbon;
 class WahaImportService
 {
     protected string $wahaUrl;
+    protected string $wahaSecret;
 
     public function __construct()
     {
-        $this->wahaUrl = config('services.waha.url', 'http://localhost:3000');
+        $this->wahaUrl = app(\App\Services\SettingCacheService::class)->get('waha_url', config('services.waha.url', 'http://localhost:3000'));
+        $this->wahaSecret = app(\App\Services\SettingCacheService::class)->get('waha_api_key', config('services.waha.api_key', ''));
     }
 
     /**
@@ -24,7 +26,13 @@ class WahaImportService
      */
     public function fetchAndParseMessages(string $session, string $chatId, ?int $limit = 100): array
     {
-        $response = Http::get("{$this->wahaUrl}/api/{$session}/chats/{$chatId}/messages", [
+        $client = Http::asJson();
+        if ($this->wahaSecret) {
+            $client = $client->withHeaders([
+                'Authorization' => "Bearer {$this->wahaSecret}"
+            ]);
+        }
+        $response = $client->timeout(15)->get("{$this->wahaUrl}/api/{$session}/chats/{$chatId}/messages", [
             'limit' => $limit,
             'downloadMedia' => false,
         ]);

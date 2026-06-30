@@ -22,8 +22,8 @@ class SettingsHubAdminControllerTest extends TestCase
         parent::setUp();
 
         // Create users
-        $this->adminUser = User::factory()->create(['role' => 'super_admin']);
-        $this->regularUser = User::factory()->create(['role' => 'user']);
+        $this->adminUser = User::factory()->create(['is_admin' => true, 'is_super_admin' => true]);
+        $this->regularUser = User::factory()->create(['is_super_admin' => false]);
         $this->workspace = Workspace::factory()->create();
     }
 

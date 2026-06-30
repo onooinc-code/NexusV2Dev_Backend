@@ -149,7 +149,7 @@ class LogServiceTest extends TestCase
     {
         // Create an old log (30 days ago)
         $oldLog = Log::factory()->create();
-        $oldLog->update(['created_at' => now()->subDays(30)]);
+        \DB::table('logs')->where('id', $oldLog->id)->update(['created_at' => now()->subDays(30)]);
 
         // Create a recent log
         $recentLog = Log::factory()->create();

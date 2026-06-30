@@ -15,10 +15,11 @@ class CacheManager
     /**
      * Cache provider data with automatic invalidation support
      */
-    public function cacheProvider(string $providerId, callable $callback, int $ttl = null)
+    public function cacheProvider(string $cacheKey, callable $callback, int $ttl = null)
     {
         $ttl = $ttl ?? self::PROVIDER_TTL;
-        $key = "provider:{$providerId}";
+        // Use the caller-supplied key directly (prefixed with 'ai_provider:' for namespace isolation)
+        $key = "ai_provider:{$cacheKey}";
 
         return Cache::remember($key, $ttl, $callback);
     }
@@ -50,8 +51,9 @@ class CacheManager
      */
     public function invalidateProvider(string $providerId)
     {
-        Cache::forget("provider:{$providerId}");
-        Cache::forget("provider:{$providerId}:models");
+        Cache::forget("ai_provider:{$providerId}");
+        Cache::forget("ai_provider:{$providerId}:models");
+        Cache::forget("ai_provider:name:*"); // best-effort name-based cache bust
         Log::debug("Invalidated cache for provider {$providerId}");
     }
 

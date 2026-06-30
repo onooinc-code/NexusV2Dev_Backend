@@ -72,7 +72,7 @@ class DashboardController extends Controller
      */
     private function getFrontendMetrics()
     {
-        $frontendPath = base_path('../nsf');
+        $frontendPath = env('FRONTEND_PATH', base_path('../Nexus-Frontend'));
 
         return [
             'path' => $frontendPath,
@@ -227,7 +227,24 @@ class DashboardController extends Controller
     private function getServerUptime()
     {
         if (PHP_OS_FAMILY === 'Windows') {
-            return 'N/A';
+            try {
+                $output = shell_exec('wmic os get lastbootuptime');
+                if ($output) {
+                    $lines = array_filter(explode("\n", trim($output)));
+                    if (count($lines) > 1) {
+                        $bootTimeStr = trim($lines[1]); // format: YYYYMMDDHHMMSS.ffffff+timezone
+                        $year = substr($bootTimeStr, 0, 4);
+                        $month = substr($bootTimeStr, 4, 2);
+                        $day = substr($bootTimeStr, 6, 2);
+                        $hour = substr($bootTimeStr, 8, 2);
+                        $minute = substr($bootTimeStr, 10, 2);
+                        $second = substr($bootTimeStr, 12, 2);
+                        $bootTime = \Carbon\Carbon::create($year, $month, $day, $hour, $minute, $second);
+                        return $bootTime->diffForHumans(null, true) . ' (since ' . $bootTime->toDateTimeString() . ')';
+                    }
+                }
+            } catch (\Exception $e) {}
+            return 'Windows Dev Server Online';
         }
 
         $uptime = shell_exec('uptime -p 2>/dev/null || echo "N/A"');

@@ -25,7 +25,7 @@ class ContactFactory extends Factory
             'type' => 'contact',
             'title' => fake()->jobTitle(),
             'company' => fake()->company(),
-            'avatar_url' => fake()->imageUrl(200, 200, 'people'),
+            'avatar_url' => url('contacts.png'),
             'metadata' => ['source' => 'factory'],
             'attributes' => ['language' => fake()->languageCode()],
             'is_active' => true,

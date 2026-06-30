@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DeadLetterTask extends Model
 {
-    protected $table = 'dead_letter_tasks';
+    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+protected $table = 'dead_letter_tasks';
 
     protected $fillable = [
         'task_id',

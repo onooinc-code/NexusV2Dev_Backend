@@ -33,8 +33,7 @@ class MonitorSettingsHealthCommandTest extends TestCase
 
     public function test_settings_health_check_is_scheduled(): void
     {
-        $kernel = $this->app->make(\App\Console\Kernel::class);
-        $schedule = $kernel->resolveConsoleSchedule();
+        $schedule = $this->app->make(\Illuminate\Console\Scheduling\Schedule::class);
 
         $commands = collect($schedule->events())
             ->map(fn ($event) => $event->command)

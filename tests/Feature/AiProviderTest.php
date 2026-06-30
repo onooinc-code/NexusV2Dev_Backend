@@ -177,4 +177,39 @@ class AiProviderTest extends TestCase
             'name'        => 'gpt-3.5-turbo',
         ]);
     }
+
+    /** @test */
+    public function it_tests_provider_connection_successfully_with_case_insensitive_headers()
+    {
+        $provider = AIProvider::factory()->create([
+            'base_url'              => 'https://api.test.com',
+            'models_fetch_endpoint' => '/models',
+            'generate_endpoint'     => '/generate',
+            'auth_header_format'    => 'Bearer {KEY}',
+        ]);
+
+        // Store mock API key
+        $keyStorage = $this->app->make(\App\Services\AiModelsHub\EncryptedApiKeyStorage::class);
+        $keyStorage->storeKey($provider->id, 'test-api-key-123', 'Test key');
+
+        // Mock HTTP response
+        \Illuminate\Support\Facades\Http::fake([
+            'https://api.test.com/models' => function (\Illuminate\Http\Client\Request $request) {
+                // Assert that authorization header was correctly resolved case-insensitively
+                if ($request->hasHeader('Authorization', 'Bearer test-api-key-123')) {
+                    return \Illuminate\Support\Facades\Http::response(['status' => 'ok'], 200);
+                }
+                return \Illuminate\Support\Facades\Http::response(['error' => 'Unauthorized'], 401);
+            }
+        ]);
+
+        $response = $this->postJson("/api/v1/ai/providers/{$provider->id}/test");
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+            'status' => 'healthy',
+            'message' => 'Connection to provider successful'
+        ]);
+    }
 }

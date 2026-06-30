@@ -29,10 +29,22 @@ class DynamicProviderRegistry
     public function getProvider($providerId)
     {
         return $this->cacheManager->cacheProvider(
-            "provider:{$providerId}",
+            $providerId,
             function () use ($providerId) {
-                return AIProvider::withCount('models')
+                $provider = AIProvider::withCount('models')
                     ->find($providerId);
+                
+                if (!$provider || !$provider->is_active) {
+                    return null;
+                }
+                
+                // Attach the decrypted API key as a transient property (not an Eloquent attribute)
+                // so it doesn't get included in future UPDATE queries.
+                $apiKey = $this->keyStorage->getDecryptedKey($providerId);
+                $provider->setRelation('_resolved_api_key', null); // unused but marks intent
+                $provider->resolved_api_key = $apiKey; // public PHP property, not Eloquent attribute
+                
+                return $provider;
             },
             $this->cacheTTL
         );
@@ -44,11 +56,21 @@ class DynamicProviderRegistry
     public function getProviderByName($name)
     {
         return $this->cacheManager->cacheProvider(
-            "provider:name:{$name}",
+            "name:{$name}",
             function () use ($name) {
-                return AIProvider::where('name', $name)
+                $provider = AIProvider::where('name', $name)
                     ->withCount('models')
                     ->first();
+                
+                if (!$provider || !$provider->is_active) {
+                    return null;
+                }
+                
+                // Attach the decrypted API key as a public PHP property (not an Eloquent attribute)
+                $apiKey = $this->keyStorage->getDecryptedKey($provider->id);
+                $provider->resolved_api_key = $apiKey;
+                
+                return $provider;
             },
             $this->cacheTTL
         );
@@ -57,10 +79,10 @@ class DynamicProviderRegistry
     /**
      * Register a new provider
      */
-    public function registerProvider(array $data)
+    public function registerProvider(array $data, ?string $apiKey = null)
     {
         $provider = AIProvider::create([
-            'id'                    => Str::uuid(),
+            'id'                    => (string) ($data['id'] ?? Str::uuid()),
             'name'                  => $data['name'],
             'base_url'              => $data['base_url'],
             'models_fetch_endpoint' => $data['models_fetch_endpoint'] ?? null,
@@ -70,6 +92,10 @@ class DynamicProviderRegistry
             'payload_format'        => $data['payload_format'] ?? 'openai',
             'is_active'             => $data['is_active'] ?? true,
         ]);
+
+        if ($apiKey) {
+            $this->keyStorage->storeKey($provider->id, $apiKey);
+        }
 
         // Clear provider caches
         $this->clearProviderCaches();
@@ -110,7 +136,8 @@ class DynamicProviderRegistry
      */
     public function syncModels($providerId)
     {
-        $provider = $this->getProvider($providerId);
+        // Fetch directly from DB to avoid cache and the resolved_api_key transient property issue
+        $provider = AIProvider::find($providerId);
 
         if (!$provider) {
             throw new \Exception("Provider not found");
@@ -134,7 +161,8 @@ class DynamicProviderRegistry
 
             // Sync with registry or database
             foreach ($models as $modelData) {
-                $existing = AIModel::where('name', $modelData['id'])
+                $modelName = $modelData['name'] ?? $modelData['id'];
+                $existing = AIModel::where('name', $modelName)
                     ->where('provider_id', $providerId)
                     ->first();
                 if ($existing) {
@@ -142,19 +170,18 @@ class DynamicProviderRegistry
                 } else {
                     AIModel::create([
                         'id' => (string) \Illuminate\Support\Str::uuid(),
-                        'name' => $modelData['id'],
+                        'name' => $modelName,
                         'provider_id' => $providerId,
                         'last_synced_at' => now(),
                     ]);
                 }
             }
 
-            // Update provider's last synced timestamp
-            $provider->update([
-                'last_synced_at' => now()
-            ]);
+            // Update provider's last synced timestamp (only safe columns)
+            AIProvider::where('id', $providerId)->update(['last_synced_at' => now()]);
 
             // Clear model caches
+            $this->clearProviderCaches();
             $this->clearModelCaches($providerId);
 
             return [

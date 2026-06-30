@@ -22,12 +22,14 @@ class TaskCrudTest extends TestCase
                 'title' => 'Test task',
                 'description' => 'A task description',
                 'priority' => 5,
+                'type' => 'manual',
             ]);
 
         file_put_contents('/tmp/taskcrud_response_post.json', $response->getContent() . "\n", FILE_APPEND);
         $response->assertStatus(201)
             ->assertJsonPath('data.title', 'Test task')
-            ->assertJsonPath('data.status', 'pending');
+            ->assertJsonPath('data.status', 'todo');
+
         file_put_contents('/tmp/taskcrud_progress.log', "post completed\n", FILE_APPEND);
 
         $task = AgentTask::first();

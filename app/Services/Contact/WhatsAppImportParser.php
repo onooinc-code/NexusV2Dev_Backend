@@ -30,7 +30,7 @@ class WhatsAppImportParser
             }
 
             // Pattern: [YYYY-MM-DD, HH:MM:SS] Sender: Message
-            if (preg_match('/^\[(\d{4}-\d{2}-\d{2}),\s*(\d{2}:\d{2}(?::\d{2})?)\]\s+(.+?):\s+(.*)$/u', $line, $matches)) {
+            if (preg_match('/^\[(\d{4}-\d{2}-\d{2}),\s*(\d{2}:\d{2}(?::\d{2})?)\]\s+(.{1,100}?):\s+(.*)$/u', $line, $matches)) {
                 if ($current !== null && ! $this->isSystemMessage($current['body'])) {
                     $messages[] = $current;
                 }
@@ -40,7 +40,7 @@ class WhatsAppImportParser
             }
 
             // Common WhatsApp export format: 31/05/2026, 2:30 PM - Sender: Message
-            if (preg_match('/^(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}),\s*(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)\s+-\s+(.+?):\s+(.*)$/u', $line, $matches)) {
+            if (preg_match('/^(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}),\s*(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)\s+-\s+(.{1,100}?):\s+(.*)$/u', $line, $matches)) {
                 if ($current !== null && ! $this->isSystemMessage($current['body'])) {
                     $messages[] = $current;
                 }
@@ -203,6 +203,50 @@ class WhatsAppImportParser
         }
 
         return Carbon::parse("{$date} {$time}", $timezone)->setTimezone('UTC')->toDateTimeString();
+    }
+
+    /**
+     * Parse date and time with potential AM/PM/am/pm and optional seconds
+     */
+    private function parseCustomDateTime(string $date, string $time, string $timezone): ?string
+    {
+        // Check if the year is 2 digits or 4 digits
+        $parts = preg_split('/[\/\-]/', $date);
+        $yearPart = $parts[2] ?? '';
+        $isTwoDigitYear = strlen($yearPart) === 2;
+
+        $dateFormat = $isTwoDigitYear ? 'y' : 'Y';
+        
+        $formats = [
+            "d/m/{$dateFormat} H:i:s", "d/m/{$dateFormat} g:i A", "d/m/{$dateFormat} g:i:s A",
+            "m/d/{$dateFormat} H:i:s", "m/d/{$dateFormat} g:i A", "m/d/{$dateFormat} g:i:s A",
+        ];
+
+        // Replace any narrow no-break space with regular space for easier parsing
+        $time = str_replace("\u{202F}", ' ', $time);
+
+        foreach ($formats as $format) {
+            try {
+                $parsed = Carbon::createFromFormat($format, "{$date} {$time}", $timezone);
+                // Sanity check: if it parsed a 2-digit year as year < 1000, reject it
+                if ($parsed->year < 1000) {
+                    continue;
+                }
+                return $parsed->setTimezone('UTC')->toDateTimeString();
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+
+        try {
+            $parsed = Carbon::parse("{$date} {$time}", $timezone);
+            if ($parsed->year < 1000 && $isTwoDigitYear) {
+                $parsed->year += 2000;
+            }
+            return $parsed->setTimezone('UTC')->toDateTimeString();
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     /**

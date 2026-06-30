@@ -22,153 +22,69 @@ class ContactImportPipeline
         $this->wahaService = new WahaImportService();
     }
 
-    /**
-     * Preview import without committing
-     *
-     * @param Contact $contact
-     * @param string $source 'whatsapp' or 'facebook'
-     * @param string $content File content or pasted text
-     * @param string $format 'txt' or 'json'
-     * @param string|null $timezone
-     * @return array
-     */
-    public function preview(
-        Contact $contact,
-        string $source,
-        string $content,
-        string $format,
-        ?string $timezone = 'UTC'
-    ): array {
-        try {
-            $parsedMessages = $this->parse($source, $content, $format, $contact, $timezone);
 
-            return [
-                'success' => true,
-                'source' => $source,
-                'format' => $format,
-                'total_messages' => count($parsedMessages),
-                'message_sample' => array_slice($parsedMessages, 0, 3),
-                'inbound_count' => count(array_filter($parsedMessages, fn($m) => $m['direction'] === 'inbound')),
-                'outbound_count' => count(array_filter($parsedMessages, fn($m) => $m['direction'] === 'outbound')),
-                'date_range' => $this->getDateRange($parsedMessages),
-                'unique_senders' => count(array_unique(array_column($parsedMessages, 'sender_identifier'))),
-            ];
-        } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage(),
-            ];
-        }
-    }
 
     /**
      * Import and commit messages
      *
-     * @param Contact $contact
-     * @param string $source
+     * @param ContactImportBatch $batch
      * @param string $content
      * @param string $format
      * @param string|null $timezone
      * @return array
      */
     public function commit(
-        Contact $contact,
-        string $source,
+        ContactImportBatch $batch,
         string $content,
         string $format,
         ?string $timezone = 'UTC'
     ): array {
-        return DB::transaction(function () use ($contact, $source, $content, $format, $timezone) {
-            $batch = null;
+        try {
+            $batch->update(['status' => 'processing']);
 
-            try {
-                // Create import batch record
-                $batch = ContactImportBatch::create([
-                    'contact_id' => $contact->id,
-                    'source' => $source,
-                    'status' => 'processing',
-                    'total_records' => 0,
-                    'imported_records' => 0,
-                    'failed_records' => 0,
-                ]);
+            // Parse messages
+            $parsedMessages = $this->parse($batch->source, $content, $format, $batch->contact, $timezone);
 
-                // Parse messages
-                $parsedMessages = $this->parse($source, $content, $format, $contact, $timezone);
+            // Normalize and create
+            $result = $this->normalizer->normalizeAndCreate(
+                $parsedMessages,
+                $batch->contact,
+                $batch->source,
+                $batch->id
+            );
 
-                // Normalize and create
-                $result = $this->normalizer->normalizeAndCreate(
-                    $parsedMessages,
-                    $contact,
-                    $source,
-                    $batch->id
-                );
+            // Update batch record
+            $batch->update([
+                'total_records' => count($parsedMessages),
+                'imported_records' => $result['created'],
+                'failed_records' => $result['duplicates'] + count($result['errors']),
+                'status' => count($result['errors']) > 0 ? 'completed_with_errors' : 'completed',
+            ]);
 
-                // Update batch record
-                $batch->update([
-                    'total_records' => count($parsedMessages),
-                    'imported_records' => $result['created'],
-                    'failed_records' => $result['duplicates'] + count($result['errors']),
-                    'status' => count($result['errors']) > 0 ? 'completed_with_errors' : 'completed',
-                ]);
+            return [
+                'success' => true,
+                'batch_id' => $batch->id,
+                'created' => $result['created'],
+                'duplicates' => $result['duplicates'],
+                'errors' => $result['errors'],
+                'message' => "Successfully imported {$result['created']} messages",
+            ];
 
-                return [
-                    'success' => true,
-                    'batch_id' => $batch->id,
-                    'created' => $result['created'],
-                    'duplicates' => $result['duplicates'],
-                    'errors' => $result['errors'],
-                    'message' => "Successfully imported {$result['created']} messages",
-                ];
+        } catch (\Exception $e) {
+            $batch->update([
+                'status' => 'failed',
+                'metadata' => array_merge($batch->metadata ?? [], ['error' => $e->getMessage()]),
+            ]);
 
-            } catch (\Exception $e) {
-                $batch?->update([
-                    'status' => 'failed',
-                    'metadata' => array_merge($batch->metadata ?? [], ['error' => $e->getMessage()]),
-                ]);
-
-                return [
-                    'success' => false,
-                    'error' => $e->getMessage(),
-                    'batch_id' => $batch?->id,
-                ];
-            }
-        });
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'batch_id' => $batch->id,
+            ];
+        }
     }
 
-    /**
-     * Rollback an import batch
-     *
-     * @param ContactImportBatch $batch
-     * @return array
-     */
-    public function rollback(ContactImportBatch $batch): array
-    {
-        return DB::transaction(function () use ($batch) {
-            try {
-                // Count messages to delete
-                $messageCount = $batch->messages()->count();
 
-                // Delete all messages from this batch
-                $batch->messages()->delete();
-
-                // Mark batch as rolled back
-                $batch->update(['status' => 'rolled_back']);
-
-                return [
-                    'success' => true,
-                    'batch_id' => $batch->id,
-                    'deleted' => $messageCount,
-                    'message' => "Rolled back {$messageCount} messages",
-                ];
-
-            } catch (\Exception $e) {
-                return [
-                    'success' => false,
-                    'error' => $e->getMessage(),
-                ];
-            }
-        });
-    }
 
     /**
      * Parse import content based on source and format
@@ -180,7 +96,7 @@ class ContactImportPipeline
      * @param string|null $timezone
      * @return array
      */
-    private function parse(
+    public function parse(
         string $source,
         string $content,
         string $format,
@@ -254,7 +170,7 @@ class ContactImportPipeline
      * @param array $messages
      * @return array|null
      */
-    private function getDateRange(array $messages): ?array
+    public function getDateRange(array $messages): ?array
     {
         if (empty($messages)) {
             return null;

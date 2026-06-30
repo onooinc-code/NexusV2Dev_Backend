@@ -135,7 +135,7 @@ class ContactsHubTest extends TestCase
         $enrichResponse->assertStatus(200);
         $this->assertEquals('Enriched Corp', $enrichResponse->json('data.company'));
 
-        $eraseResponse = $this->deleteJson("/api/v1/contacts/{$primaryContact->id}/erase");
+        $eraseResponse = $this->postJson("/api/v1/contacts/{$primaryContact->id}/erase");
         $eraseResponse->assertStatus(200);
         $this->assertSoftDeleted('contacts', ['id' => $primaryContact->id]);
         $this->assertDatabaseMissing('contact_identifiers', ['contact_id' => $primaryContact->id]);

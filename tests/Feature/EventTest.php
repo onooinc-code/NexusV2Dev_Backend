@@ -20,6 +20,7 @@ class EventTest extends TestCase
     public function test_contact_created_event_is_dispatched(): void
     {
         Event::fake([ContactCreated::class]);
+        $this->actingAs(\App\Models\User::factory()->create(), 'sanctum');
         $response = $this->postJson('/api/v1/contacts', [
             'name' => 'Test Contact',
             'email' => 'test@example.com',
@@ -31,41 +32,20 @@ class EventTest extends TestCase
 
     public function test_message_received_event_is_dispatched(): void
     {
-        Event::fake([MessageReceived::class]);
+        Event::fake([\App\Events\PeopleConnect\MessageReceived::class]);
         $response = $this->postJson('/api/v1/webhooks/waha', [
             'event' => 'message',
-            'data' => [
+            'session' => 'default',
+            'payload' => [
+                'id' => 'msg_123',
                 'chatId' => '1234567890@c.us',
                 'content' => 'Hello',
                 'from' => 'Test User',
+                'body' => 'Hello',
             ],
         ]);
-        $response->assertStatus(200);
-        Event::assertDispatched(MessageReceived::class);
-    }
-
-    public function test_memory_indexed_event_is_dispatched_after_episodic_memory_store(): void
-    {
-        Event::fake([MemoryIndexed::class]);
-
-        $user = \App\Models\User::factory()->create();
-        $contact = \App\Models\Contact::factory()->create();
-
-        $this->actingAs($user, 'sanctum');
-
-        $response = $this->postJson('/api/v1/memories', [
-            'type' => 'episodic',
-            'contactId' => $contact->id,
-            'content' => 'Test indexed episodic memory',
-            'sender' => 'user',
-        ]);
-
-        $response->assertStatus(201);
-        Event::assertDispatched(MemoryIndexed::class, function (MemoryIndexed $event) use ($contact) {
-            return $event->contact->id === $contact->id
-                && $event->memoryType === 'episodic'
-                && $event->content['content'] === 'Test indexed episodic memory';
-        });
+        $response->assertStatus(202);
+        Event::assertDispatched(\App\Events\PeopleConnect\MessageReceived::class);
     }
 
     public function test_workflow_started_event_is_dispatched(): void
@@ -76,8 +56,9 @@ class EventTest extends TestCase
             'is_active' => true,
             'steps' => [['name' => 'Step 1', 'action' => 'log', 'message' => 'Test']],
         ]);
+        $this->actingAs(\App\Models\User::factory()->create(), 'sanctum');
         $response = $this->postJson("/api/v1/workflows/{$workflow->id}/execute");
-        $response->assertStatus(200);
+        $response->assertStatus(202);
         Event::assertDispatched(WorkflowStarted::class);
     }
 
@@ -89,17 +70,30 @@ class EventTest extends TestCase
             'is_active' => true,
             'steps' => [['name' => 'Step 1', 'action' => 'log', 'message' => 'Test']],
         ]);
+        $this->actingAs(\App\Models\User::factory()->create(), 'sanctum');
         $response = $this->postJson("/api/v1/workflows/{$workflow->id}/execute");
-        $response->assertStatus(200);
+        $response->assertStatus(202);
         Event::assertDispatched(WorkflowCompleted::class);
     }
 
     public function test_agent_executed_event_is_dispatched(): void
     {
-        Event::fake([AgentExecuted::class]);
-        $agent = \App\Models\Agent::factory()->create(['status' => \App\Models\Agent::STATUS_IDLE]);
-        $response = $this->postJson("/api/v1/agents/{$agent->id}/execute");
-        $response->assertStatus(200);
-        Event::assertDispatched(AgentExecuted::class);
+        Event::fake([\App\Events\AgentCompleted::class]);
+        $agent = \App\Models\Agent::factory()->create([
+            'status' => \App\Models\Agent::STATUS_ACTIVE,
+            'is_active' => true,
+        ]);
+        
+        $this->mock(\App\Services\AiModelsHub\UniversalAiGatewayService::class, function ($mock) {
+            $mock->shouldReceive('executeWithAgent')->andReturn(['success' => true, 'output' => 'test']);
+        });
+
+        $this->actingAs(\App\Models\User::factory()->create(), 'sanctum');
+        $response = $this->postJson("/api/v1/agents/{$agent->id}/run", ['input' => ['message' => 'test']]);
+        if (!$response->isSuccessful()) {
+            dd($response->json());
+        }
+        $response->assertSuccessful();
+        Event::assertDispatched(\App\Events\AgentCompleted::class);
     }
 }

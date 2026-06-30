@@ -103,6 +103,15 @@ class WorkflowInterpreter
             'started_at' => now(),
         ]);
 
+        $this->emit(new WorkflowStepCompleted(
+            (string) $workflow->id,
+            (string) $step['id'],
+            (string) $step['name'],
+            'running',
+            [],
+            ['execution_id' => $execution->id]
+        ));
+
         try {
             $result = $this->runStepByType($execution, $step, $state);
             $durationMs = (int) ((microtime(true) - $startedAt) * 1000);

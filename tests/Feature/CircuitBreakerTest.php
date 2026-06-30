@@ -3,12 +3,7 @@
 namespace Tests\Feature;
 
 use Tests\TestCase;
-use App\Models\AIProvider;
-use App\Models\AIModel;
-use App\Models\IntentRouting;
 use App\Services\AiModelsHub\CircuitBreaker;
-use App\Services\AiModelsHub\SemanticCache;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class CircuitBreakerTest extends TestCase
@@ -68,7 +63,7 @@ class CircuitBreakerTest extends TestCase
     /** @test */
     public function it_logs_rate_limit_exceptions_and_tries_fallback()
     {
-        Log::shouldReceive('warning')->atLeast()->once();
+        Log::spy();
 
         $result = $this->circuitBreaker->executeWithFallback(
             fn() => throw new \App\Exceptions\AiRateLimitException(),
@@ -79,5 +74,6 @@ class CircuitBreakerTest extends TestCase
 
         $this->assertTrue($result['success']);
         $this->assertTrue($result['fallback_triggered']);
+        Log::shouldHaveReceived('warning')->atLeast()->once();
     }
 }

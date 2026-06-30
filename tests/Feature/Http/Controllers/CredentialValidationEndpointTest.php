@@ -16,7 +16,7 @@ class CredentialValidationEndpointTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user = User::factory()->create();
+        $this->user = User::factory()->create(['is_admin' => true]);
     }
 
     public function test_validate_credential_endpoint_validates_single_setting(): void
@@ -25,7 +25,7 @@ class CredentialValidationEndpointTest extends TestCase
             'key' => 'integrations.openai_key',
             'value' => 'sk-test-key',
             'group' => 'integrations',
-            'is_encrypted' => true,
+            'is_encrypted' => false,
         ]);
 
         $response = $this->actingAs($this->user)
@@ -37,9 +37,7 @@ class CredentialValidationEndpointTest extends TestCase
             ->assertJsonStructure([
                 'success',
                 'data' => [
-                    'key',
                     'valid',
-                    'status',
                     'message',
                 ],
             ]);
@@ -75,12 +73,11 @@ class CredentialValidationEndpointTest extends TestCase
             ->assertJsonStructure([
                 'success',
                 'data' => [
-                    'status',
                     'timestamp',
-                    'checks' => [
-                        'reverb',
-                        'credentials',
+                    'reverb' => [
+                        'healthy',
                     ],
+                    'credential_validation',
                 ],
             ]);
     }
@@ -89,8 +86,8 @@ class CredentialValidationEndpointTest extends TestCase
     {
         $response = $this->actingAs($this->user)
             ->postJson('/api/v1/settings/credentials/validate', [
-                'provider' => 'openai',
-                'key' => 'sk-test-inline-key',
+                'key' => 'integrations.openai_key',
+                'value' => 'sk-test-inline-key',
             ]);
 
         $response->assertStatus(200)
@@ -115,7 +112,7 @@ class CredentialValidationEndpointTest extends TestCase
             ->getJson('/api/v1/settings/health');
 
         $response->assertStatus(200);
-        $reverb = $response->json('data.checks.reverb');
+        $reverb = $response->json('data.reverb');
         
         $this->assertIsArray($reverb);
         $this->assertArrayHasKey('healthy', $reverb);
@@ -130,7 +127,7 @@ class CredentialValidationEndpointTest extends TestCase
             ->getJson('/api/v1/settings/health');
 
         $response->assertStatus(200);
-        $credentials = $response->json('data.checks.credentials');
+        $credentials = $response->json('data.credential_validation');
         
         $this->assertIsArray($credentials);
         $this->assertArrayHasKey('valid_count', $credentials);

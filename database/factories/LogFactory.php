@@ -48,7 +48,7 @@ class LogFactory extends Factory
                 Log::CHANNEL_QUEUE,
             ]),
             'message' => $this->faker->sentence(),
-            'context' => $this->faker->optional()->words(3, true),
+            'context' => [],
             'type' => $this->faker->randomElement([
                 Log::TYPE_APPLICATION,
                 Log::TYPE_SYSTEM,

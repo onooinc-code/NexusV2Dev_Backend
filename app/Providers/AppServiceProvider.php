@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Http\Request;
 use App\Events\MemoryIndexed;
 use App\Events\WorkflowCompleted;
 use App\Events\WorkflowStarted;
@@ -24,9 +27,15 @@ use App\Listeners\TriggerWorkflowsForEvent;
 use App\Models\ConversationSession;
 use Illuminate\Queue\Events\JobFailed;
 use App\Models\User;
+use App\Policies\AgentPolicy;
 use App\Policies\SessionPolicy;
 use App\Policies\SettingPolicy;
+use App\Policies\HedrasoulSessionPolicy;
+use App\Policies\HedrasoulMessagePolicy;
+use App\Models\Agent;
 use App\Models\Setting;
+use App\Models\HedrasoulSession;
+use App\Models\HedrasoulMessage;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -52,10 +61,6 @@ class AppServiceProvider extends ServiceProvider
             return new \App\Services\Routing\MessageRouterService($app['cache']);
         });
 
-        $this->app->singleton(
-            \Illuminate\Contracts\Console\Kernel::class,
-            \App\Console\Kernel::class,
-        );
 
         // Bind Interface implementations
         $this->app->bind(
@@ -97,10 +102,18 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(\App\Events\TaskFailedEvent::class, [\App\Listeners\ResumeWorkflowOnTaskCompletion::class, 'handle']);
 
         // Register broadcast authorization policies
+        Gate::policy(\App\Models\Contact::class, \App\Policies\ContactPolicy::class);
+        Gate::policy(Agent::class, AgentPolicy::class);
         Gate::policy(ConversationSession::class, SessionPolicy::class);
         Gate::policy(Setting::class, SettingPolicy::class);
+        Gate::policy(HedrasoulSession::class, HedrasoulSessionPolicy::class);
+        Gate::policy(HedrasoulMessage::class, HedrasoulMessagePolicy::class);
         Gate::define('viewBatch', fn (User $user, string $batchId): bool => in_array($user->email, config('broadcasting.admin_emails', []), true));
         Gate::define('viewDlq', fn (User $user): bool => in_array($user->email, config('broadcasting.admin_emails', []), true));
+
+        RateLimiter::for('analysis', function (Request $request) {
+            return Limit::perMinute(10)->by($request->user()?->id ?: $request->ip());
+        });
 
         // Register broadcast auth routes and load channel definitions
         Broadcast::routes(['middleware' => ['api', 'auth:sanctum']]);
@@ -116,6 +129,15 @@ class AppServiceProvider extends ServiceProvider
 
         // Register wildcard workflow event trigger listener
         app(\App\Services\Workflows\WorkflowEventTriggerService::class)->registerWildcardListener();
+
+        // Global view composer for layout
+        \Illuminate\Support\Facades\View::composer('layouts.app', function ($view) {
+            $unreadNotificationsCount = 0;
+            try {
+                $unreadNotificationsCount = \App\Models\HedrasoulNotification::unread()->active()->count();
+            } catch (\Exception $e) {}
+            $view->with('unreadNotificationsCount', $unreadNotificationsCount);
+        });
     }
 
     /**

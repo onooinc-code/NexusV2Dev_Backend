@@ -312,13 +312,28 @@ class AiRouteController extends Controller
 
         $headers = ['Content-Type' => 'application/json'];
 
-        if ($provider->auth_header_format === 'Bearer {key}') {
-            $headers['Authorization'] = 'Bearer ' . $apiKey;
-        } elseif ($provider->auth_header_format === 'Key {key}') {
-            $headers['Authorization'] = 'Key ' . $apiKey;
+        $authFormat = $provider->auth_header_format;
+        if ($authFormat) {
+            if (str_contains($authFormat, ':')) {
+                [$headerName, $headerValFormat] = explode(':', $authFormat, 2);
+                $authValue = str_ireplace(['{KEY}', '{API_KEY}', '{key}'], $apiKey, $headerValFormat);
+                $headers[trim($headerName)] = trim($authValue);
+            } else {
+                $authValue = str_ireplace(['{KEY}', '{API_KEY}', '{key}'], $apiKey, $authFormat);
+                $parts = explode(' ', trim($authValue), 2);
+                if (count($parts) === 2) {
+                    $prefix = strtolower($parts[0]);
+                    if ($prefix === 'bearer' || $prefix === 'key') {
+                        $headers['Authorization'] = trim($authValue);
+                    } else {
+                        $headers[trim($parts[0])] = trim($parts[1]);
+                    }
+                } else {
+                    $headers['Authorization'] = $authValue;
+                }
+            }
         } else {
-            $headerName = str_replace('{key}', '', $provider->auth_header_format);
-            $headers[trim($headerName)] = $apiKey;
+            $headers['Authorization'] = 'Bearer ' . $apiKey;
         }
 
         if (!SsrfProtectionMiddleware::validateUrl($provider->base_url)) {
@@ -326,6 +341,7 @@ class AiRouteController extends Controller
         }
 
         $response = Http::withHeaders($headers)
+            ->withOptions(['verify' => config('services.ai.verify_ssl', true)])
             ->timeout(30)
             ->post(
                 $provider->base_url . '/' . ltrim($provider->generate_endpoint, '/'),

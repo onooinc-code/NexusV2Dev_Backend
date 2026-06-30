@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ContactAuditEvent extends Model
 {
-    protected $fillable = [
+    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+protected $fillable = [
         'contact_id',
         'actor_type',
         'actor_id',

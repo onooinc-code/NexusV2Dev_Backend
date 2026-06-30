@@ -307,21 +307,24 @@ class ContactController extends Controller
         return response()->json(['data' => new ContactResource($merged)]);
     }
 
-    public function erase($id)
+    public function exportBundle($id)
     {
         $contact = Contact::findOrFail($id);
+        $user = auth()->user();
+        
+        \App\Jobs\ExportContactDataJob::dispatch($contact, $user->email ?? 'admin@example.com', $user->id ?? 0);
+        
+        return response()->json(['data' => ['status' => 'export_queued', 'message' => 'Export job dispatched']]);
+    }
 
-        $this->contactHubService->eraseContact($contact);
-
-        $this->logService->info('Contact erased', [
-            'channel' => 'contact',
-            'type' => 'erase',
-            'related_id' => $contact->id,
-            'related_type' => Contact::class,
-            'user_id' => request()->user()?->id,
-        ]);
-
-        return response()->json(['message' => 'contact erased', 'id' => $id]);
+    public function erase(Request $request, $id)
+    {
+        $contact = Contact::findOrFail($id);
+        $user = $request->user();
+        
+        \App\Jobs\EraseContactDataJob::dispatch($contact->id, $user->id ?? 0);
+        
+        return response()->json(['data' => ['status' => 'erase_queued', 'message' => 'Erase job dispatched']]);
     }
 
     public function enrich(Request $request, $id)
@@ -552,7 +555,7 @@ class ContactController extends Controller
     {
         Contact::findOrFail($id);
 
-        $cacheKey = "contact_{$id}_messages_" . md5(json_encode($request->query()));
+        $cacheKey = "contact_{$id}_messages_" . md5(json_encode($request->only(['channel', 'search', 'page', 'per_page', 'date_from', 'date_to'])));
         $data = Cache::remember($cacheKey, 60, function () use ($request, $id) {
             return $this->filteredMessages($request, (int) $id)->paginate($request->integer('per_page', 25));
         });
@@ -631,37 +634,105 @@ class ContactController extends Controller
         return response()->json(['data' => $events]);
     }
 
-    public function exportBundle($id)
+    public function hubAnalytics(Request $request)
     {
-        $contact = Contact::with([
-            'identifiers',
-            'aliases',
-            'preferences',
-            'relationships',
-            'replyRules',
-            'topics',
-            'messages',
-            'analysisFindings',
-            'auditEvents',
-        ])->findOrFail($id);
+        $this->authorize('viewAny', Contact::class);
+        $totalContacts = Contact::count();
+        
+        $staleContacts = Contact::where('memory_freshness', '<', now()->subDays(config('contacts.memory_staleness_days', 30)))
+            ->orWhereNull('memory_freshness')
+            ->count();
+            
+        $conflictedContacts = Contact::whereHas('identifiers', fn($q) => $q->where('conflict_detected', true))
+            ->orWhereHas('aliases', fn($q) => $q->where('confidence', '<', 0.7))
+            ->count();
+
+        $contactsByType = Contact::select('type', \DB::raw('count(*) as count'))
+            ->groupBy('type')
+            ->get();
+
+        $replyModeDistribution = Contact::select('reply_mode_override', \DB::raw('count(*) as count'))
+            ->groupBy('reply_mode_override')
+            ->get();
+
+        $importRates = [
+            'total_records' => (int) \App\Models\ContactImportBatch::sum('total_records'),
+            'imported_records' => (int) \App\Models\ContactImportBatch::sum('imported_records'),
+            'failed_records' => (int) \App\Models\ContactImportBatch::sum('failed_records'),
+        ];
+
+        $totalAnalysisCost = ContactAnalysisRun::whereNotNull('cost_metadata')
+            ->cursor()
+            ->sum(function ($run) {
+                return $run->cost_metadata['total_cost'] ?? 0;
+            });
 
         return response()->json([
             'data' => [
-                'exported_at' => now()->toISOString(),
-                'schema_version' => 1,
-                'contact' => new ContactResource($contact),
-                'identifiers' => $contact->identifiers,
-                'aliases' => $contact->aliases,
-                'preferences' => $contact->preferences,
-                'relationships' => $contact->relationships,
-                'reply_rules' => $contact->replyRules,
-                'topics' => $contact->topics,
-                'messages' => $contact->messages,
-                'analysis_findings' => $contact->analysisFindings,
-                'audit_events' => $contact->auditEvents,
-            ],
+                'total_contacts' => $totalContacts,
+                'stale_memory_count' => $staleContacts,
+                'conflicted_contacts' => $conflictedContacts,
+                'channel_distribution' => \DB::table('contact_messages')
+                    ->select('channel', \DB::raw('count(*) as count'))
+                    ->groupBy('channel')
+                    ->get(),
+                'contacts_by_type' => $contactsByType,
+                'reply_mode_distribution' => $replyModeDistribution,
+                'import_rates' => $importRates,
+                'total_analysis_cost' => $totalAnalysisCost,
+            ]
         ]);
     }
+
+    public function conflicts(Request $request, $id = null)
+    {
+        if ($id !== null) {
+            return response()->json(['data' => []]);
+        }
+
+        $this->authorize('viewAny', Contact::class);
+        $contacts = Contact::whereHas('identifiers', fn($q) => $q->where('conflict_detected', true))
+            ->orWhereHas('aliases', fn($q) => $q->where('confidence', '<', 0.7))
+            ->paginate($request->integer('per_page', 20));
+        return response()->json(['data' => $contacts]);
+    }
+
+    public function staleMemory(Request $request, $id = null)
+    {
+        if ($id !== null) {
+            return response()->json(['data' => []]);
+        }
+
+        $this->authorize('viewAny', Contact::class);
+        $threshold = config('contacts.memory_staleness_days', 30);
+        $contacts = Contact::where('memory_freshness', '<', now()->subDays($threshold))
+            ->orWhereNull('memory_freshness')
+            ->paginate($request->integer('per_page', 20));
+        return response()->json(['data' => $contacts]);
+    }
+
+    public function contactMaintenanceRuns(Request $request, $id)
+    {
+        $contact = Contact::findOrFail($id);
+        $this->authorize('view', $contact);
+        $runs = \App\Models\ContactMemoryMaintenanceRun::whereJsonContains('scope->contact_id', (int)$id)
+            ->orderBy('created_at', 'desc')
+            ->paginate($request->integer('per_page', 20));
+        return response()->json(['data' => $runs]);
+    }
+
+    public function topicMentions(Request $request, $id, $topicId)
+    {
+        $contact = Contact::findOrFail($id);
+        $this->authorize('view', $contact);
+        
+        $topic = ContactTopic::where('contact_id', $id)->findOrFail($topicId);
+        return response()->json([
+            'data' => $topic->mentions()->with('message')->paginate(20),
+        ]);
+    }
+
+
 
     public function listReplyRules($id)
     {
@@ -720,10 +791,12 @@ class ContactController extends Controller
 
     public function topics($id)
     {
-        Contact::findOrFail($id);
+        $contact = Contact::findOrFail($id);
+        $this->authorize('view', $contact);
 
         return response()->json([
             'data' => ContactTopic::withCount('mentions')
+                ->with(['mentions' => fn($q) => $q->limit(3)])
                 ->where('contact_id', $id)
                 ->orderBy('topic')
                 ->get(),
@@ -733,21 +806,81 @@ class ContactController extends Controller
     public function intelligence($id)
     {
         $contact = Contact::with(['analysisFindings', 'topics', 'preferences', 'replyRules'])->findOrFail($id);
-
+        $this->authorize('view', $contact);
+        
+        $persona = $this->assemblePersona($contact);
+        $talkSpecs = $this->assembleTalkSpecs($contact);
+        $emotionalBaseline = $this->assembleEmotionalBaseline($contact);
+        
         return response()->json([
             'data' => [
-                'contact_id' => (int) $id,
-                'profile_confidence' => $contact->profile_confidence,
-                'memory_freshness' => $contact->memory_freshness,
-                'summary' => $contact->metadata['ai_summary'] ?? null,
-                'findings' => $contact->analysisFindings,
-                'topics' => $contact->topics,
-                'preferences' => $contact->preferences,
-                'reply_rules' => $contact->replyRules,
-            ],
+                'persona' => $persona,
+                'talk_specs' => $talkSpecs,
+                'emotional_baseline' => $emotionalBaseline,
+            ]
         ]);
     }
 
+    private function assemblePersona(Contact $contact): ?array
+    {
+        $finding = $contact->analysisFindings->where('finding_type', 'persona')->sortByDesc('created_at')->first();
+        
+        if (!$finding) {
+            return null;
+        }
+        
+        return [
+            'relationship_context' => $finding->content['relationship_context'] ?? null,
+            'interests' => $finding->content['interests'] ?? [],
+            'communication_style' => $finding->content['communication_style'] ?? null,
+            'boundaries' => $finding->content['boundaries'] ?? null,
+            'trust_level' => $finding->content['trust_level'] ?? null,
+            'confidence' => $finding->confidence_score ?? $finding->confidence ?? 0,
+            'evidence_references' => $finding->evidence_references ?? [],
+            'source_message_ids' => $finding->source_message_ids ?? [],
+            'last_validated_at' => $finding->created_at?->toIso8601String() ?? $contact->memory_freshness?->toIso8601String(),
+        ];
+    }
+
+    private function assembleTalkSpecs(Contact $contact): ?array
+    {
+        $finding = $contact->analysisFindings->where('finding_type', 'talk_specs')->sortByDesc('created_at')->first();
+        
+        if (!$finding) {
+            return null;
+        }
+        
+        return [
+            'preferred_language' => $finding->content['preferred_language'] ?? null,
+            'formality' => $finding->content['formality'] ?? null,
+            'message_length' => $finding->content['message_length'] ?? null,
+            'emoji_tolerance' => $finding->content['emoji_tolerance'] ?? null,
+            'topics_to_avoid' => $finding->content['topics_to_avoid'] ?? [],
+            'confidence' => $finding->confidence_score ?? $finding->confidence ?? 0,
+            'evidence_references' => $finding->evidence_references ?? [],
+            'source_message_ids' => $finding->source_message_ids ?? [],
+            'last_validated_at' => $finding->created_at?->toIso8601String() ?? $contact->memory_freshness?->toIso8601String(),
+        ];
+    }
+
+    private function assembleEmotionalBaseline(Contact $contact): ?array
+    {
+        $finding = $contact->analysisFindings->where('finding_type', 'emotional_baseline')->sortByDesc('created_at')->first();
+        
+        if (!$finding) {
+            return null;
+        }
+        
+        return [
+            'sentiment_range' => $finding->content['sentiment_range'] ?? null,
+            'common_mood_markers' => $finding->content['common_mood_markers'] ?? [],
+            'recent_deviation' => $finding->content['recent_deviation'] ?? null,
+            'confidence' => $finding->confidence_score ?? $finding->confidence ?? 0,
+            'evidence_references' => $finding->evidence_references ?? [],
+            'source_message_ids' => $finding->source_message_ids ?? [],
+            'last_validated_at' => $finding->created_at?->toIso8601String() ?? $contact->memory_freshness?->toIso8601String(),
+        ];
+    }
     public function persona($id)
     {
         $contact = Contact::findOrFail($id);

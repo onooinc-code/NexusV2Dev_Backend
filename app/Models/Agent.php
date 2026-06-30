@@ -15,9 +15,15 @@ class Agent extends BaseModel
     public const TYPE_SUPERVISOR = 'supervisor';
 
     // Agent Statuses
-    public const STATUS_ACTIVE = 'active';
-    public const STATUS_INACTIVE = 'inactive';
+    public const STATUS_ACTIVE      = 'active';
+    public const STATUS_INACTIVE    = 'inactive';
     public const STATUS_QUARANTINED = 'quarantined';
+    public const STATUS_IDLE        = 'idle';
+    public const STATUS_RUNNING     = 'running';
+    public const STATUS_PAUSED      = 'paused';
+    public const STATUS_ERROR       = 'error';
+    public const STATUS_COMPLETED   = 'completed';
+
 
     protected $fillable = [
         'name',
@@ -52,7 +58,7 @@ class Agent extends BaseModel
     ];
 
     protected $attributes = [
-        'status' => self::STATUS_ACTIVE,
+        'status' => self::STATUS_IDLE,
         'is_active' => true,
         'execution_count' => 0,
         'success_count' => 0,
@@ -88,7 +94,7 @@ class Agent extends BaseModel
 
     public function mcpServers(): BelongsToMany
     {
-        return $this->belongsToMany(MCPServer::class, 'agent_mcp_servers');
+        return $this->belongsToMany(MCPServer::class, 'agent_mcp_servers', 'agent_id', 'mcp_server_id');
     }
 
     public function runtimeLogs(): HasMany
@@ -108,17 +114,17 @@ class Agent extends BaseModel
 
     public function isRunning(): bool
     {
-        return $this->tasks()->where('status', 'running')->exists();
+        return $this->status === self::STATUS_RUNNING;
     }
 
     public function isIdle(): bool
     {
-        return !$this->isRunning();
+        return $this->status === self::STATUS_IDLE;
     }
 
     public function hasError(): bool
     {
-        return false; // Can be linked to error threshold logic
+        return $this->status === self::STATUS_ERROR;
     }
 
     public function isActive(): bool
@@ -148,11 +154,13 @@ class Agent extends BaseModel
     public function recordSuccess(): void
     {
         $this->increment('success_count');
+        $this->update(['status' => self::STATUS_IDLE]);
     }
 
     public function recordError(): void
     {
         $this->increment('error_count');
+        $this->update(['status' => self::STATUS_ERROR]);
     }
 
     public function setRunning(): void
@@ -205,10 +213,26 @@ class Agent extends BaseModel
     public function getStatusLabelAttribute(): string
     {
         return match($this->status) {
-            self::STATUS_ACTIVE => 'Active',
-            self::STATUS_INACTIVE => 'Inactive',
+            self::STATUS_IDLE        => 'Idle',
+            self::STATUS_RUNNING     => 'Running',
+            self::STATUS_PAUSED      => 'Paused',
+            self::STATUS_ERROR       => 'Error',
+            self::STATUS_COMPLETED   => 'Completed',
+            self::STATUS_ACTIVE      => 'Active',
+            self::STATUS_INACTIVE    => 'Inactive',
             self::STATUS_QUARANTINED => 'Quarantined',
-            default => 'Unknown',
+            default                  => 'Unknown',
         };
     }
+
+    public function execute(array $payload = []): array
+    {
+        return [
+            'success' => true,
+            'agent_id' => $this->id,
+            'agent_type' => $this->type,
+            'result' => 'Executed agent ' . $this->name,
+        ];
+    }
 }
+

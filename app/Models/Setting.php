@@ -255,4 +255,11 @@ class Setting extends Model
             default => ucfirst($this->group),
         };
     }
+
+    public function setValue($value): bool
+    {
+        $this->value = $value;
+        return $this->save();
+    }
 }
+

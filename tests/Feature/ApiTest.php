@@ -80,12 +80,10 @@ class ApiTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonStructure([
                 'data' => [],
-                'meta' => [
-                    'current_page',
-                    'last_page',
-                    'per_page',
-                    'total',
-                ],
+                'current_page',
+                'last_page',
+                'per_page',
+                'total',
             ]);
     }
 
@@ -132,7 +130,7 @@ class ApiTest extends TestCase
         $response = $this->getJson('/api/v1/contacts?search=Alice');
 
         $response->assertStatus(200)
-            ->assertJsonCount(1, 'data.data');
+            ->assertJsonCount(1, 'data');
     }
 
     // ─── API Rate Limiting ───────────────────────────────────────────────
@@ -172,11 +170,7 @@ class ApiTest extends TestCase
             ->assertJsonStructure([
                 'status',
                 'timestamp',
-                'services' => [
-                    'database',
-                    'cache',
-                    'queue',
-                ],
+                'app',
             ]);
     }
 }

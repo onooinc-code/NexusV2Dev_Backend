@@ -79,15 +79,6 @@ abstract class BaseJob implements ShouldQueue
     public bool $deleteWhenMissingModels = true;
 
     /**
-     * Execute the job.
-     *
-     * This method is called by the queue worker and must be implemented by child classes.
-     *
-     * @return void
-     */
-    abstract public function handle(): void;
-
-    /**
      * Generate idempotency key for this job.
      *
      * Override this method in child classes to customize idempotency key generation.

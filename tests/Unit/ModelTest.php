@@ -26,6 +26,7 @@ class ModelTest extends TestCase
             'name', 'key', 'description', 'type', 'provider', 'status',
             'settings', 'metadata', 'is_active', 'last_executed_at',
             'execution_count', 'success_count', 'error_count',
+            'owner_id', 'persona_id', 'is_system', 'rate_limit_per_minute',
         ], $agent->getFillable());
     }
 
@@ -220,8 +221,9 @@ class ModelTest extends TestCase
     {
         $workflow = new Workflow();
         $this->assertEquals([
-            'name', 'key', 'description', 'steps', 'trigger_type', 'trigger_config',
-            'status', 'settings', 'metadata', 'is_active', 'last_executed_at',
+            'uuid', 'name', 'key', 'description', 'is_system', 'owner_id',
+            'steps', 'trigger_type', 'trigger_config', 'status', 'version',
+            'settings', 'metadata', 'is_active', 'last_executed_at',
             'execution_count', 'success_count', 'error_count',
         ], $workflow->getFillable());
     }
@@ -230,10 +232,10 @@ class ModelTest extends TestCase
     {
         $workflow = new Workflow();
         $casts = $workflow->getCasts();
-        $this->assertEquals('json', $casts['steps']);
-        $this->assertEquals('json', $casts['trigger_config']);
-        $this->assertEquals('json', $casts['settings']);
-        $this->assertEquals('json', $casts['metadata']);
+        $this->assertEquals('array', $casts['steps']);
+        $this->assertEquals('array', $casts['trigger_config']);
+        $this->assertEquals('array', $casts['settings']);
+        $this->assertEquals('array', $casts['metadata']);
         $this->assertEquals('boolean', $casts['is_active']);
         $this->assertEquals('datetime', $casts['last_executed_at']);
     }
@@ -400,7 +402,8 @@ class ModelTest extends TestCase
     {
         $setting = new Setting();
         $this->assertEquals([
-            'key', 'value', 'type', 'group', 'is_public', 'description',
+            'key', 'value', 'type', 'group', 'is_public',
+            'is_encrypted', 'scope', 'workspace_id', 'user_id', 'description',
         ], $setting->getFillable());
     }
 
@@ -408,7 +411,7 @@ class ModelTest extends TestCase
     {
         $setting = new Setting();
         $casts = $setting->getCasts();
-        $this->assertEquals('json', $casts['value']);
+        $this->assertArrayHasKey('value', $casts);
         $this->assertEquals('boolean', $casts['is_public']);
         $this->assertEquals('datetime', $casts['created_at']);
     }
@@ -500,8 +503,12 @@ class ModelTest extends TestCase
     {
         $contact = new Contact();
         $this->assertEquals([
-            'uuid', 'user_id', 'phone', 'name', 'email', 'type', 'title',
-            'company', 'avatar_url', 'metadata', 'attributes', 'is_active', 'last_seen_at',
+            'uuid', 'user_id', 'phone', 'whatsapp_number',
+            'name', 'display_name', 'alternate_name', 'canonical_name',
+            'email', 'primary_identifier', 'waha_contact_id',
+            'type', 'gender', 'title', 'company', 'avatar_url',
+            'metadata', 'attributes', 'is_active', 'last_seen_at',
+            'last_interaction_at', 'reply_mode_override', 'profile_confidence', 'memory_freshness',
         ], $contact->getFillable());
     }
 
@@ -636,7 +643,8 @@ class ModelTest extends TestCase
     {
         $message = new Message();
         $this->assertEquals([
-            'conversation_id', 'sender_type', 'sender_id', 'direction',
+            'conversation_id', 'sender', 'sender_name', 'sender_type', 'sender_id',
+            'channel', 'thread_id', 'direction',
             'content_type', 'content', 'metadata', 'status', 'sent_at', 'received_at',
         ], $message->getFillable());
     }

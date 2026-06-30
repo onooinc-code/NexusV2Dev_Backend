@@ -302,4 +302,60 @@ class GraphMemoryService
             return null;
         }
     }
+
+    /**
+     * Paginate graph nodes
+     */
+    public function paginate(int $contactId = null, int $perPage = 25): array
+    {
+        try {
+            $query = DB::table('graph_nodes');
+            if ($contactId !== null) {
+                $query->where('related_id', $contactId)
+                      ->where('related_type', 'App\\Models\\Contact');
+            }
+
+            $paginated = $query->orderBy('created_at', 'desc')->paginate($perPage);
+
+            $data = [];
+            foreach ($paginated->items() as $row) {
+                $data[] = [
+                    'id' => $row->id,
+                    'label' => $row->label,
+                    'type' => $row->type,
+                    'related_id' => $row->related_id,
+                    'related_type' => $row->related_type,
+                    'properties' => json_decode($row->properties, true),
+                    'created_at' => $row->created_at,
+                    'updated_at' => $row->updated_at,
+                ];
+            }
+
+            return [
+                'data' => $data,
+                'current_page' => $paginated->currentPage(),
+                'total' => $paginated->total(),
+                'per_page' => $paginated->perPage(),
+                'last_page' => $paginated->lastPage(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('GraphMemoryService::paginate failed', ['error' => $e->getMessage()]);
+            return [
+                'data' => [],
+                'current_page' => 1,
+                'total' => 0,
+                'per_page' => $perPage,
+                'last_page' => 1,
+            ];
+        }
+    }
+
+    /**
+     * Alias for findShortestPath
+     */
+    public function shortestPath(int $fromNodeId, int $toNodeId, int $maxDepth = 10): array
+    {
+        $path = $this->findShortestPath($fromNodeId, $toNodeId, $maxDepth);
+        return $path ?: [];
+    }
 }

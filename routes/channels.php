@@ -57,3 +57,26 @@ Broadcast::channel('workflow.{workflowId}', function (User $user, string $workfl
 
     return ! $workflow->owner_id || (int) $workflow->owner_id === (int) $user->id;
 });
+
+/**
+ * PeopleConnect Hub Channels
+ */
+
+// Hub-level channel — receives aggregate events (e.g. new message arrives in any conversation)
+Broadcast::channel('peopleconnect.hub', function (User $user) {
+    // Any authenticated user can subscribe to the hub channel
+    return ['id' => $user->id, 'name' => $user->name];
+});
+
+// Per-conversation channel — receives detailed events for a specific conversation
+Broadcast::channel('peopleconnect.conversation.{conversationId}', function (User $user, int $conversationId) {
+    // Any authenticated user may subscribe (multi-tenant ACL can be added here later)
+    return ['id' => $user->id, 'name' => $user->name];
+});
+
+/**
+ * HedraSoul Hub Channels
+ */
+Broadcast::channel('hedrasoul.hub.{userId}', function (User $user, int $userId) {
+    return (int) $user->id === (int) $userId;
+});

@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WorkflowWebhook extends Model
 {
-    use HasUuids;
+    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+use HasUuids;
 
     protected $fillable = [
         'workflow_id',

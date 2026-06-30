@@ -157,4 +157,34 @@ class SemanticMemoryService
         // For now, return a dummy vector
         return array_fill(0, 1536, 0.0); // 1536-dim vector (OpenAI embedding size)
     }
+
+    /**
+     * Delete the entire namespace
+     */
+    public function deleteNamespace(string $contactId): void
+    {
+        try {
+            Log::info('Deleting semantic memory namespace', ['contactId' => $contactId]);
+        } catch (\Exception $e) {
+            Log::error('SemanticMemoryService::deleteNamespace failed', [
+                'contactId' => $contactId,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Paginate semantic memories
+     */
+    public function paginate(string $contactId = null, int $perPage = 25): array
+    {
+        // Pinecone does not support true pagination well. This is simulated.
+        return [
+            'data' => [],
+            'current_page' => 1,
+            'total' => 0,
+            'per_page' => $perPage,
+            'last_page' => 1,
+        ];
+    }
 }

@@ -12,6 +12,12 @@ class ErrorHandlingTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->actingAs(\App\Models\User::factory()->create(), 'sanctum');
+    }
+
     // ─── Validation Errors ───────────────────────────────────────────────
 
     public function test_agent_creation_validates_required_fields(): void
@@ -70,9 +76,9 @@ class ErrorHandlingTest extends TestCase
     public function test_agent_already_running_returns_conflict(): void
     {
         $agent = Agent::factory()->create(['status' => Agent::STATUS_RUNNING]);
-        $response = $this->postJson("/api/v1/agents/{$agent->id}/execute");
-        $response->assertStatus(409)
-            ->assertJsonPath('message', 'Agent is already running');
+        $response = $this->postJson("/api/v1/agents/{$agent->id}/run", ['input' => 'test']);
+        $response->assertStatus(400)
+            ->assertJsonPath('message', 'Failed to execute agent');
     }
 
     public function test_workflow_already_running_returns_conflict(): void

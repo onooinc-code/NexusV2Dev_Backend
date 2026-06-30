@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WorkflowSchedule extends Model
 {
-    protected $fillable = [
+    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+protected $fillable = [
         'workflow_id',
         'cron_expression',
         'input_payload',

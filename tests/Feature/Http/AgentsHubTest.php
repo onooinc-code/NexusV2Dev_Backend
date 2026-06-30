@@ -263,7 +263,7 @@ class AgentsHubTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonPath('data.execution_count', 5)
             ->assertJsonPath('data.success_count', 4)
-            ->assertJsonPath('data.success_rate', 80.0);
+            ->assertJsonPath('data.success_rate', 80);
     }
 
     // ─────────────────────────────────────────────
@@ -285,7 +285,7 @@ class AgentsHubTest extends TestCase
         $this->agent->quarantine();
 
         $response = $this->postJson("/api/v1/agents/{$this->agent->id}/run", [
-            'input' => 'Process this task.',
+            'input' => ['message' => 'Process this task.'],
         ]);
 
         $response->assertStatus(400)
@@ -327,7 +327,7 @@ class AgentsHubTest extends TestCase
     public function test_simulate_logs_runtime_trace(): void
     {
         $this->postJson("/api/v1/agents/{$this->agent->id}/simulate", [
-            'input' => 'Test input payload.',
+            'input' => ['message' => 'Test input payload.'],
         ]);
 
         $this->assertDatabaseHas('agent_runtime_logs', [
@@ -341,7 +341,7 @@ class AgentsHubTest extends TestCase
         $this->agent->quarantine();
 
         $response = $this->postJson("/api/v1/agents/{$this->agent->id}/simulate", [
-            'input' => 'Should be blocked.',
+            'input' => ['message' => 'Should be blocked.'],
         ]);
 
         $response->assertStatus(400)->assertJsonPath('success', false);
@@ -372,7 +372,7 @@ class AgentsHubTest extends TestCase
         });
 
         $response = $this->postJson("/api/v1/agents/{$this->agent->id}/run", [
-            'input' => 'Process async task.',
+            'input' => ['message' => 'Process async task.'],
             'async' => true,
         ]);
 

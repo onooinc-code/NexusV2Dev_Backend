@@ -16,7 +16,7 @@ class MonitoringHealthTest extends TestCase
         $this->withoutExceptionHandling();
 
         $redis = \Mockery::mock();
-        $redis->shouldReceive('ping')->once()->andReturn('PONG');
+        $redis->shouldReceive('ping')->andReturn('PONG');
         $redis->shouldReceive('llen')->with('queues:default')->andReturn(0);
         $redis->shouldReceive('llen')->with('queues:critical')->andReturn(0);
         $redis->shouldReceive('llen')->with('queues:llm-inference')->andReturn(0);
@@ -24,11 +24,30 @@ class MonitoringHealthTest extends TestCase
 
         Redis::shouldReceive('connection')->andReturn($redis);
 
+        config(['services.pinecone.api_key' => 'test-key']);
+        config(['database.connections.neo4j.password' => 'test-pass']);
+        config(['services.waha.api_token' => 'test-token']);
+        config(['services.waha.api_key' => 'test-token']);
+
         Http::fake([
-            'https://127.0.0.1:6001/health' => Http::response(['ok' => true], 200),
+            '*' => Http::response(['ok' => true], 200),
         ]);
 
+        $this->mock(\App\Http\Controllers\Monitoring\HealthController::class, function ($mock) {
+            $mock->makePartial()->shouldAllowMockingProtectedMethods();
+            $mock->shouldReceive('checkReverb')->andReturn([
+                'ok' => true,
+                'host' => '127.0.0.1',
+                'port' => 6001,
+                'status' => 'listening',
+            ]);
+        });
+
         $response = $this->getJson('/api/v1/monitoring/health');
+
+        if ($response->json('status') !== 'healthy') {
+            dump($response->json());
+        }
 
         $response->assertOk();
         $response->assertJsonPath('status', 'healthy');

@@ -13,13 +13,12 @@ class PayloadAdapterFactoryTest extends TestCase
         $factory = new PayloadAdapterFactory();
         
         $genericPayload = [
-            'model' => 'gpt-4',
-            'messages' => [
-                ['role' => 'user', 'content' => 'Hello'],
-                ['role' => 'assistant', 'content' => 'Hi there!'],
-            ],
-            'temperature' => 0.7,
-            'max_tokens' => 100,
+            'model_id' => 'gpt-4',
+            'prompt' => 'Hello',
+            'parameters' => [
+                'temperature' => 0.7,
+                'max_tokens' => 100,
+            ]
         ];
         
         $adapted = $factory->adaptPayload('openai', $genericPayload);
@@ -27,7 +26,6 @@ class PayloadAdapterFactoryTest extends TestCase
         $this->assertEquals('gpt-4', $adapted['model']);
         $this->assertEquals([
             ['role' => 'user', 'content' => 'Hello'],
-            ['role' => 'assistant', 'content' => 'Hi there!'],
         ], $adapted['messages']);
         $this->assertEquals(0.7, $adapted['temperature']);
         $this->assertEquals(100, $adapted['max_tokens']);
@@ -39,21 +37,26 @@ class PayloadAdapterFactoryTest extends TestCase
         $factory = new PayloadAdapterFactory();
         
         $genericPayload = [
-            'model' => 'claude-3-opus',
-            'messages' => [
-                ['role' => 'user', 'content' => 'Hello'],
-                ['role' => 'assistant', 'content' => 'Hi there!'],
+            'model_id' => 'claude-3-opus',
+            'prompt' => 'Hello',
+            'parameters' => [
+                'temperature' => 0.7,
+                'max_tokens' => 100,
             ],
-            'temperature' => 0.7,
-            'max_tokens' => 100,
+            'context' => [
+                'system' => 'System prompt'
+            ]
         ];
         
         $adapted = $factory->adaptPayload('anthropic', $genericPayload);
         
         $this->assertEquals('claude-3-opus', $adapted['model']);
-        $this->assertEquals('Hello\n\nHi there!', $adapted['prompt']);
+        $this->assertEquals([
+            ['role' => 'user', 'content' => 'Hello'],
+        ], $adapted['messages']);
         $this->assertEquals(0.7, $adapted['temperature']);
         $this->assertEquals(100, $adapted['max_tokens']);
+        $this->assertEquals('System prompt', $adapted['system']);
     }
     
     /** @test */
@@ -62,13 +65,12 @@ class PayloadAdapterFactoryTest extends TestCase
         $factory = new PayloadAdapterFactory();
         
         $genericPayload = [
-            'model' => 'mixtral-8x7b',
-            'messages' => [
-                ['role' => 'user', 'content' => 'Hello'],
-                ['role' => 'assistant', 'content' => 'Hi there!'],
-            ],
-            'temperature' => 0.7,
-            'max_tokens' => 100,
+            'model_id' => 'mixtral-8x7b',
+            'prompt' => 'Hello',
+            'parameters' => [
+                'temperature' => 0.7,
+                'max_tokens' => 100,
+            ]
         ];
         
         $adapted = $factory->adaptPayload('groq', $genericPayload);
@@ -76,7 +78,6 @@ class PayloadAdapterFactoryTest extends TestCase
         $this->assertEquals('mixtral-8x7b', $adapted['model']);
         $this->assertEquals([
             ['role' => 'user', 'content' => 'Hello'],
-            ['role' => 'assistant', 'content' => 'Hi there!'],
         ], $adapted['messages']);
         $this->assertEquals(0.7, $adapted['temperature']);
         $this->assertEquals(100, $adapted['max_tokens']);
@@ -88,21 +89,19 @@ class PayloadAdapterFactoryTest extends TestCase
         $factory = new PayloadAdapterFactory();
         
         $genericPayload = [
-            'model' => 'gemini-pro',
-            'messages' => [
-                ['role' => 'user', 'content' => 'Hello'],
-                ['role' => 'assistant', 'content' => 'Hi there!'],
-            ],
-            'temperature' => 0.7,
-            'max_tokens' => 100,
+            'model_id' => 'gemini-pro',
+            'prompt' => 'Hello',
+            'parameters' => [
+                'temperature' => 0.7,
+                'max_tokens' => 100,
+            ]
         ];
         
         $adapted = $factory->adaptPayload('gemini', $genericPayload);
         
         $this->assertArrayHasKey('contents', $adapted);
         $this->assertEquals([
-            ['role' => 'user', 'parts' => [['text' => 'Hello']]],
-            ['role' => 'model', 'parts' => [['text' => 'Hi there!']]],
+            ['parts' => [['text' => 'Hello']]],
         ], $adapted['contents']);
         $this->assertArrayHasKey('generationConfig', $adapted);
         $this->assertEquals(0.7, $adapted['generationConfig']['temperature']);
@@ -139,8 +138,8 @@ class PayloadAdapterFactoryTest extends TestCase
         $adapted = $factory->adaptResponse('openai', $providerResponse);
         
         $this->assertEquals('Hello, how can I help you?', $adapted['content']);
-        $this->assertEquals(10, $adapted['usage']['prompt_tokens']);
-        $this->assertEquals(8, $adapted['usage']['completion_tokens']);
+        $this->assertEquals(10, $adapted['usage']['input_tokens']);
+        $this->assertEquals(8, $adapted['usage']['output_tokens']);
         $this->assertEquals(18, $adapted['usage']['total_tokens']);
     }
     
@@ -153,7 +152,12 @@ class PayloadAdapterFactoryTest extends TestCase
             'id' => 'msg_123',
             'type' => 'message',
             'role' => 'assistant',
-            'content' => 'Hello, how can I help you?',
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => 'Hello, how can I help you?',
+                ]
+            ],
             'model' => 'claude-3-opus',
             'stop_reason' => 'end_turn',
             'stop_sequence' => null,
@@ -166,8 +170,8 @@ class PayloadAdapterFactoryTest extends TestCase
         $adapted = $factory->adaptResponse('anthropic', $providerResponse);
         
         $this->assertEquals('Hello, how can I help you?', $adapted['content']);
-        $this->assertEquals(10, $adapted['usage']['prompt_tokens']);
-        $this->assertEquals(8, $adapted['usage']['completion_tokens']);
+        $this->assertEquals(10, $adapted['usage']['input_tokens']);
+        $this->assertEquals(8, $adapted['usage']['output_tokens']);
         $this->assertEquals(18, $adapted['usage']['total_tokens']);
     }
     
@@ -202,8 +206,8 @@ class PayloadAdapterFactoryTest extends TestCase
         $adapted = $factory->adaptResponse('gemini', $providerResponse);
         
         $this->assertEquals('Hello, how can I help you?', $adapted['content']);
-        $this->assertEquals(10, $adapted['usage']['prompt_tokens']);
-        $this->assertEquals(8, $adapted['usage']['completion_tokens']);
+        $this->assertEquals(10, $adapted['usage']['input_tokens']);
+        $this->assertEquals(8, $adapted['usage']['output_tokens']);
         $this->assertEquals(18, $adapted['usage']['total_tokens']);
     }
 }

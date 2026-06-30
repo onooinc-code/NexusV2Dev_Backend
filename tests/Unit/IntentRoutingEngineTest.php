@@ -3,7 +3,6 @@
 namespace Tests\Unit;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\WithFaker;
 use Tests\TestCase;
 use App\Services\AiModelsHub\IntentRoutingEngine;
 use App\Models\AIProvider;
@@ -22,25 +21,26 @@ class IntentRoutingEngineTest extends TestCase
             'provider_id' => $provider->id,
         ]);
 
-        $intent = IntentRouting::factory()->create([
+        $intent = IntentRouting::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
             'intent_name' => 'test-intent',
             'default_provider_id' => $provider->id,
             'default_model_id' => $model->id,
         ]);
 
-        $engine = new IntentRoutingEngine();
+        $engine = app(IntentRoutingEngine::class);
 
         $result = $engine->resolveIntent('test-intent');
 
         $this->assertNotNull($result);
-        $this->assertEquals($provider->id, $result['provider_id']);
-        $this->assertEquals($model->id, $result['model_id']);
+        $this->assertEquals($provider->id, $result->default_provider_id);
+        $this->assertEquals($model->id, $result->default_model_id);
     }
 
     /** @test */
     public function it_returns_null_for_unknown_intent()
     {
-        $engine = new IntentRoutingEngine();
+        $engine = app(IntentRoutingEngine::class);
 
         $result = $engine->resolveIntent('unknown-intent');
 
@@ -59,7 +59,8 @@ class IntentRoutingEngineTest extends TestCase
             'provider_id' => $fallbackProvider->id,
         ]);
 
-        $intent = IntentRouting::factory()->create([
+        $intent = IntentRouting::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
             'intent_name' => 'test-intent',
             'default_provider_id' => $provider->id,
             'default_model_id' => $model->id,
@@ -67,13 +68,14 @@ class IntentRoutingEngineTest extends TestCase
             'fallback_model_id' => $fallbackModel->id,
         ]);
 
-        $engine = new IntentRoutingEngine();
+        $engine = app(IntentRoutingEngine::class);
 
         $result = $engine->getFallbackOptions('test-intent');
 
         $this->assertNotNull($result);
-        $this->assertEquals($fallbackProvider->id, $result['provider_id']);
-        $this->assertEquals($fallbackModel->id, $result['model_id']);
+        $this->assertCount(1, $result);
+        $this->assertEquals($fallbackProvider->id, $result[0]['provider']->id);
+        $this->assertEquals($fallbackModel->id, $result[0]['model']->id);
     }
 
     /** @test */
@@ -84,15 +86,15 @@ class IntentRoutingEngineTest extends TestCase
             'provider_id' => $provider->id,
         ]);
 
-        $engine = new IntentRoutingEngine();
+        $engine = app(IntentRoutingEngine::class);
 
-        $result = $engine->upsertRouting(
-            'test-intent',
-            $provider->id,
-            $model->id
-        );
+        $result = $engine->upsertIntentRouting([
+            'intent_name' => 'test-intent',
+            'default_provider_id' => $provider->id,
+            'default_model_id' => $model->id
+        ]);
 
-        $this->assertTrue($result);
+        $this->assertNotNull($result);
         $this->assertDatabaseHas('intent_routing', [
             'intent_name' => 'test-intent',
             'default_provider_id' => $provider->id,
@@ -105,13 +107,13 @@ class IntentRoutingEngineTest extends TestCase
             'provider_id' => $provider2->id,
         ]);
 
-        $result = $engine->upsertRouting(
-            'test-intent',
-            $provider2->id,
-            $model2->id
-        );
+        $result = $engine->upsertIntentRouting([
+            'intent_name' => 'test-intent',
+            'default_provider_id' => $provider2->id,
+            'default_model_id' => $model2->id
+        ]);
 
-        $this->assertTrue($result);
+        $this->assertNotNull($result);
         $this->assertDatabaseHas('intent_routing', [
             'intent_name' => 'test-intent',
             'default_provider_id' => $provider2->id,
@@ -128,15 +130,16 @@ class IntentRoutingEngineTest extends TestCase
             'provider_id' => $provider->id,
         ]);
 
-        $intent = IntentRouting::factory()->create([
+        $intent = IntentRouting::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
             'intent_name' => 'test-intent',
             'default_provider_id' => $provider->id,
             'default_model_id' => $model->id,
         ]);
 
-        $engine = new IntentRoutingEngine();
+        $engine = app(IntentRoutingEngine::class);
 
-        $result = $engine->deleteRouting('test-intent');
+        $result = $engine->deleteIntentRouting('test-intent');
 
         $this->assertTrue($result);
         $this->assertDatabaseMissing('intent_routing', [

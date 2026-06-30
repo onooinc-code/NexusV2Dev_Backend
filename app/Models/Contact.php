@@ -40,6 +40,7 @@ class Contact extends BaseModel
         'canonical_name',
         'email',
         'primary_identifier',
+        'waha_contact_id',
         'type',
         'gender',
         'title',
@@ -70,6 +71,16 @@ class Contact extends BaseModel
         return $this->hasMany(Conversation::class);
     }
 
+    public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function peopleConnectConversations(): HasMany
+    {
+        return $this->hasMany(\App\Models\PeopleConnect\PeopleConnectConversation::class);
+    }
+
     public function notes(): HasMany
     {
         return $this->hasMany(ContactNote::class);
@@ -78,6 +89,19 @@ class Contact extends BaseModel
     public function tags(): HasMany
     {
         return $this->hasMany(ContactTag::class);
+    }
+
+    public function favoritedBy(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'contact_favorites')->withTimestamps();
+    }
+
+    public function isFavoritedBy(?User $user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+        return $this->favoritedBy()->where('users.id', $user->id)->exists();
     }
 
     public function rules(): HasMany

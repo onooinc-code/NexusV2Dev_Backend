@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AIProvider extends BaseModel
 {
+    public $resolved_api_key;
+
     protected $table = 'ai_providers';
 
     public $incrementing = false;
@@ -30,8 +32,14 @@ class AIProvider extends BaseModel
         'last_synced_at' => 'datetime',
     ];
 
+    public function getApiKeyAttribute()
+    {
+        return $this->resolved_api_key;
+    }
+
     public function models(): HasMany
     {
         return $this->hasMany(AIModel::class, 'provider_id');
     }
 }
+

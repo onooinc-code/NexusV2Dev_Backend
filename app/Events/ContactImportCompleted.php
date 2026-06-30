@@ -14,6 +14,7 @@ class ContactImportCompleted
     public function __construct(
         public Contact $contact,
         public int $messagesImported,
-        public string $source
+        public string $source,
+        public string $outcome = 'completed'
     ) {}
 }

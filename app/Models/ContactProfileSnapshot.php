@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ContactProfileSnapshot extends Model
 {
-    protected $fillable = [
+    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+protected $fillable = [
         'contact_id',
         'snapshot_data',
         'reason',

@@ -26,7 +26,7 @@ class SettingPolicy
         }
 
         // Only admins can view private settings
-        return $user->is_admin;
+        return (bool) $user->is_admin;
     }
 
     /**
@@ -34,7 +34,7 @@ class SettingPolicy
      */
     public function create(User $user): bool
     {
-        return $user->is_admin;
+        return (bool) $user->is_admin;
     }
 
     /**
@@ -44,16 +44,16 @@ class SettingPolicy
     {
         // Critical system settings require super-admin
         if (Str::startsWith($setting->key, 'system.')) {
-            return $user->is_super_admin ?? false;
+            return (bool) $user->is_super_admin;
         }
 
         // Integration settings require super-admin
         if (Str::startsWith($setting->key, 'integrations.')) {
-            return $user->is_super_admin ?? false;
+            return (bool) $user->is_super_admin;
         }
 
         // Other settings require admin
-        return $user->is_admin;
+        return (bool) $user->is_admin;
     }
 
     /**
@@ -62,7 +62,7 @@ class SettingPolicy
     public function delete(User $user, Setting $setting): bool
     {
         // Only super-admins can delete settings
-        return $user->is_super_admin ?? false;
+        return (bool) $user->is_super_admin;
     }
 
     /**
@@ -70,7 +70,7 @@ class SettingPolicy
      */
     public function viewMasked(User $user, Setting $setting): bool
     {
-        return $user->is_admin;
+        return (bool) $user->is_admin;
     }
 
     /**
@@ -78,7 +78,7 @@ class SettingPolicy
      */
     public function toggleEmergency(User $user): bool
     {
-        return $user->is_super_admin ?? false;
+        return (bool) $user->is_super_admin;
     }
 
     /**
@@ -86,6 +86,6 @@ class SettingPolicy
      */
     public function runSeeder(User $user): bool
     {
-        return $user->is_super_admin ?? false;
+        return (bool) $user->is_super_admin;
     }
 }

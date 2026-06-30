@@ -6,7 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class AiAuditTrail extends Model
 {
-    protected $fillable = [
+    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+protected $fillable = [
         'event_type',
         'provider_id',
         'model_id',

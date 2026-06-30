@@ -92,4 +92,35 @@ class AgentTask extends BaseModel
     {
         return $value;
     }
+
+    public function cancel(): bool
+    {
+        app(\App\Services\TaskQueueService::class)->cancel($this);
+        return true;
+    }
+
+    public function pause(): bool
+    {
+        app(\App\Services\TaskQueueService::class)->pause($this);
+        return true;
+    }
+
+    public function resume(): bool
+    {
+        app(\App\Services\TaskQueueService::class)->resume($this);
+        return true;
+    }
+
+    public function complete(array $result = []): bool
+    {
+        app(\App\Services\TaskQueueService::class)->complete($this, $result);
+        return true;
+    }
+
+    public function fail(string $error = null): bool
+    {
+        app(\App\Services\TaskQueueService::class)->fail($this, $error);
+        return true;
+    }
 }
+

@@ -38,7 +38,7 @@ class AgentPolicy
     public function update(User $user, Agent $agent): bool
     {
         // For now, allow owners or admins to update. But since owner_id might be missing right now, default to true or check if owner_id matches.
-        return $agent->owner_id === null || $agent->owner_id === $user->id || $user->is_super_admin;
+        return (bool) ($agent->owner_id === null || $agent->owner_id === $user->id || $user->is_super_admin);
     }
 
     /**
@@ -49,7 +49,7 @@ class AgentPolicy
         if ($agent->is_system) {
             return false;
         }
-        return $agent->owner_id === null || $agent->owner_id === $user->id || $user->is_super_admin;
+        return (bool) ($agent->owner_id === null || $agent->owner_id === $user->id || $user->is_super_admin);
     }
 
     public function run(User $user, Agent $agent): bool
@@ -59,6 +59,6 @@ class AgentPolicy
 
     public function quarantine(User $user, Agent $agent): bool
     {
-        return $user->is_super_admin || $agent->owner_id === null || $agent->owner_id === $user->id;
+        return (bool) ($user->is_super_admin || $agent->owner_id === null || $agent->owner_id === $user->id);
     }
 }

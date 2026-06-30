@@ -148,8 +148,7 @@ class LogControllerTest extends TestCase
     public function test_clear_removes_old_logs(): void
     {
         // Create an old log (30 days ago)
-        $oldLog = Log::factory()->create();
-        $oldLog->update(['created_at' => now()->subDays(30)]);
+        $oldLog = Log::factory()->create(['created_at' => now()->subDays(30)]);
 
         // Create a recent log
         $recentLog = Log::factory()->create();

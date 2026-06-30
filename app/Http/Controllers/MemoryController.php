@@ -63,94 +63,177 @@ class MemoryController extends Controller
     }
 
     /**
-     * Display a listing of memories.
+     * Display a paginated listing of memories, optionally filtered by type and contact.
      */
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(['data' => []]);
+        $validated = $request->validate([
+            'type'       => 'sometimes|string|in:working,episodic,semantic,structured,graph',
+            'contact_id' => 'sometimes|integer|exists:contacts,id',
+            'per_page'   => 'sometimes|integer|min:1|max:100',
+            'sort'       => 'sometimes|string|in:created_at,confidence,relevance',
+        ]);
+
+        $type      = $validated['type'] ?? null;
+        $contactId = $validated['contact_id'] ?? null;
+        $perPage   = (int) ($validated['per_page'] ?? 25);
+        $sort      = $validated['sort'] ?? 'created_at';
+
+        try {
+            $results = [];
+
+            $types = $type ? [$type] : ['episodic', 'semantic', 'structured', 'graph'];
+
+            foreach ($types as $t) {
+                switch ($t) {
+                    case 'episodic':
+                        $page = $this->episodicMemoryService->paginate($contactId, $perPage, $sort);
+                        $results[$t] = $page;
+                        break;
+                    case 'semantic':
+                        if ($this->semanticMemoryService) {
+                            $results[$t] = $this->semanticMemoryService->paginate($contactId, $perPage);
+                        }
+                        break;
+                    case 'structured':
+                        if ($this->structuredMemoryService) {
+                            $results[$t] = $this->structuredMemoryService->paginate(
+                                $contactId,
+                                $perPage,
+                                $sort === 'created_at' ? 'created_at' : 'confidence'
+                            );
+                        }
+                        break;
+                    case 'graph':
+                        if ($this->graphMemoryService) {
+                            $results[$t] = $this->graphMemoryService->paginate($contactId, $perPage);
+                        }
+                        break;
+                }
+            }
+
+            return response()->json([
+                'data' => $results,
+                'filters' => [
+                    'type'       => $type,
+                    'contact_id' => $contactId,
+                    'per_page'   => $perPage,
+                    'sort'       => $sort,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            $this->logService->error('Memory index failed', [
+                'channel' => 'memory',
+                'type'    => 'index',
+                'context' => ['error' => $e->getMessage()],
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to load memories',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
      * Store a newly created memory in storage.
+     * Accepts an optional contactId — contactless submissions are stored as working/global memories.
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'type' => 'required|string|in:working,episodic,semantic,structured,graph',
-            'contactId' => 'required_if:type,episodic,semantic,structured|integer|exists:contacts,id',
-            'content' => 'required_if:type,episodic,semantic|string',
-            'data' => 'sometimes|array',
-            'metadata' => 'sometimes|array',
-            'factType' => 'required_if:type,structured|string',
-            'label' => 'required_if:type,graph|string',
-            'nodeType' => 'required_if:type,graph|string',
+            'type'      => 'required|string|in:working,episodic,semantic,structured,graph',
+            'contactId' => 'sometimes|nullable|integer|exists:contacts,id',
+            'content'   => 'sometimes|nullable|string',
+            'data'      => 'sometimes|array',
+            'metadata'  => 'sometimes|array',
+            'factType'  => 'sometimes|string',
+            'label'     => 'sometimes|string',
+            'nodeType'  => 'sometimes|string',
         ]);
 
         try {
-            $result = null;
-            $type = $validated['type'];
+            $result    = null;
+            $type      = $validated['type'];
+            $contactId = $validated['contactId'] ?? null;
+            $content   = $validated['content'] ?? null;
+            $metadata  = $validated['metadata'] ?? [];
+
+            // If no contactId, fallback to working memory (global knowledge store)
+            if ($contactId === null && in_array($type, ['episodic', 'semantic', 'structured'])) {
+                $result = $this->workingMemoryService->store(
+                    'global_' . uniqid(),
+                    [
+                        'type'     => $type,
+                        'content'  => $content,
+                        'metadata' => $metadata,
+                        'agent'    => $metadata['agent'] ?? 'Manual',
+                    ],
+                    null
+                );
+                if ($result !== null && $result !== false) {
+                    $this->logService->info('Global memory created (no contact)', [
+                        'channel' => 'memory',
+                        'type'    => 'create',
+                        'user_id' => $request->user()?->id,
+                        'context' => ['memory_type' => $type],
+                    ]);
+                    return response()->json([
+                        'message' => 'Memory created successfully (global)',
+                        'id'      => null,
+                        'type'    => $type,
+                    ], 201);
+                }
+
+                return response()->json(['message' => 'Failed to create memory'], 500);
+            }
 
             switch ($type) {
                 case 'working':
                     $result = $this->workingMemoryService->store(
                         $validated['key'] ?? uniqid(),
-                        $validated['value'] ?? $validated['content'] ?? $validated['data'],
+                        $validated['value'] ?? $content ?? $validated['data'],
                         $validated['ttl'] ?? null
                     );
                     break;
                 case 'episodic':
                     $result = $this->episodicMemoryService->storeMessage(
-                        $validated['contactId'],
-                        $validated['content'],
+                        $contactId,
+                        $content,
                         $validated['sender'] ?? 'user',
-                        $validated['metadata'] ?? []
+                        $metadata
                     );
-
                     if ($result && $this->semanticMemoryService) {
                         $this->semanticMemoryService->store(
-                            $validated['contactId'],
-                            $validated['content'],
-                            array_merge($validated['metadata'] ?? [], ['source' => 'episodic'])
+                            $contactId,
+                            $content,
+                            array_merge($metadata, ['source' => 'episodic'])
                         );
-                    }
-
-                    if ($result && $contact = Contact::find($validated['contactId'])) {
-                        // Memory stored successfully; Pinecone indexing will emit MemoryIndexed when complete.
                     }
                     break;
                 case 'semantic':
                     if ($this->semanticMemoryService) {
-                        $result = $this->semanticMemoryService->store(
-                            $validated['contactId'],
-                            $validated['content'],
-                            $validated['metadata'] ?? []
-                        );
-
-                        if ($result && $contact = Contact::find($validated['contactId'])) {
-                            // Memory stored successfully; indexing will emit MemoryIndexed when available.
-                        }
+                        $result = $this->semanticMemoryService->store($contactId, $content, $metadata);
                     }
                     break;
                 case 'structured':
                     if ($this->structuredMemoryService) {
                         $result = $this->structuredMemoryService->store(
-                            $validated['contactId'],
-                            $validated['factType'],
+                            $contactId,
+                            $validated['factType'] ?? 'general',
                             $validated['data'] ?? [],
-                            $validated['metadata'] ?? []
+                            $metadata
                         );
-
-                        if ($result && $contact = Contact::find($validated['contactId'])) {
-                            // Structured memory stored successfully; SyncMemoryJob will keep memory services in sync.
-                            SyncMemoryJob::dispatch($validated['contactId'], 'structured');
+                        if ($result) {
+                            SyncMemoryJob::dispatch($contactId, 'structured');
                         }
                     }
                     break;
                 case 'graph':
                     if ($this->graphMemoryService) {
                         $result = $this->graphMemoryService->addNode(
-                            $validated['label'],
-                            $validated['nodeType'],
+                            $validated['label'] ?? 'node',
+                            $validated['nodeType'] ?? 'generic',
                             $validated['relatedId'] ?? null,
                             $validated['relatedType'] ?? null,
                             $validated['properties'] ?? []
@@ -162,33 +245,32 @@ class MemoryController extends Controller
             if ($result !== null && $result !== false) {
                 $this->logService->info('Memory created', [
                     'channel' => 'memory',
-                    'type' => 'create',
-                    'related_id' => $result,
+                    'type'    => 'create',
+                    'related_id'   => is_int($result) ? $result : null,
                     'related_type' => 'App\Models\Memory',
                     'user_id' => $request->user()?->id,
                     'context' => ['memory_type' => $type],
                 ]);
 
                 return response()->json([
-                    'message' => "Memory created successfully",
-                    'id' => is_int($result) ? $result : null,
-                    'type' => $type
+                    'message' => 'Memory created successfully',
+                    'id'      => is_int($result) ? $result : null,
+                    'type'    => $type,
                 ], 201);
             }
 
-            return response()->json([
-                'message' => 'Failed to create memory'
-            ], 500);
+            return response()->json(['message' => 'Failed to create memory'], 500);
+
         } catch (\Exception $e) {
             $this->logService->error('Memory creation failed', [
                 'channel' => 'memory',
-                'type' => 'create',
+                'type'    => 'create',
                 'context' => ['error' => $e->getMessage(), 'request' => $request->all()],
             ]);
 
             return response()->json([
                 'message' => 'An error occurred while creating the memory',
-                'error' => $e->getMessage()
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }
@@ -196,6 +278,7 @@ class MemoryController extends Controller
     /**
      * Display the specified memory.
      */
+
     public function show($id)
     {
         // For simplicity, we'll assume this is an episodic memory ID
@@ -493,7 +576,7 @@ class MemoryController extends Controller
     public function indexMemory(Request $request, $id)
     {
         $validated = $request->validate([
-            'type' => 'required|string|in:episodic,structured',
+            'type'      => 'required|string|in:episodic,structured',
             'contactId' => 'required|integer|exists:contacts,id',
         ]);
 
@@ -507,18 +590,161 @@ class MemoryController extends Controller
         ExtractMemoryJob::dispatch($conversation->id);
 
         $this->logService->info('Memory extraction queued', [
-            'channel' => 'memory',
-            'type' => 'extract',
-            'related_id' => $conversation->id,
+            'channel'      => 'memory',
+            'type'         => 'extract',
+            'related_id'   => $conversation->id,
             'related_type' => 'App\Models\Conversation',
-            'user_id' => $request->user()?->id,
-            'context' => ['memory_type' => $validated['type']],
+            'user_id'      => $request->user()?->id,
+            'context'      => ['memory_type' => $validated['type']],
         ]);
 
         return response()->json([
-            'message' => 'Memory extraction dispatched',
+            'message'         => 'Memory extraction dispatched',
             'conversation_id' => $conversation->id,
-            'status' => 'queued',
+            'status'          => 'queued',
         ], 202);
+    }
+
+    /**
+     * Reinforce the confidence of a structured memory.
+     */
+    public function reinforceConfidence(Request $request, $id)
+    {
+        try {
+            if (! $this->structuredMemoryService) {
+                return response()->json(['message' => 'Structured memory service unavailable'], 503);
+            }
+            $this->structuredMemoryService->reinforceConfidence((int) $id);
+            $this->logService->info('Memory confidence reinforced', [
+                'channel'    => 'memory',
+                'type'       => 'reinforce',
+                'related_id' => $id,
+                'user_id'    => $request->user()?->id,
+            ]);
+            return response()->json(['message' => 'Confidence reinforced', 'id' => $id]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to reinforce confidence', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Apply time-decay to structured memories.
+     */
+    public function applyDecay(Request $request)
+    {
+        $validated = $request->validate([
+            'days_threshold' => 'sometimes|integer|min:1|max:365',
+            'decay_amount'   => 'sometimes|numeric|min:0.01|max:0.5',
+        ]);
+
+        try {
+            if (! $this->structuredMemoryService) {
+                return response()->json(['message' => 'Structured memory service unavailable'], 503);
+            }
+            $affected = $this->structuredMemoryService->applyDecay(
+                $validated['days_threshold'] ?? 30,
+                (float) ($validated['decay_amount'] ?? 0.05)
+            );
+            return response()->json(['message' => 'Decay applied', 'affected' => $affected]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to apply decay', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get version history for a structured memory.
+     */
+    public function versions(Request $request, $id)
+    {
+        try {
+            $versions = \Illuminate\Support\Facades\DB::table('contact_memory_versions')
+                ->where('memory_id', $id)
+                ->where('memory_type', 'structured')
+                ->orderBy('version', 'desc')
+                ->paginate(20);
+
+            return response()->json($versions);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to retrieve versions', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get all memories for a specific contact (Contact Memory Panel).
+     */
+    public function contactMemories(Request $request, $contactId)
+    {
+        $contact = Contact::find($contactId);
+        if (! $contact) {
+            return response()->json(['message' => 'Contact not found'], 404);
+        }
+
+        try {
+            $data = [
+                'episodic'   => $this->episodicMemoryService->paginate((int) $contactId, 15),
+                'structured' => $this->structuredMemoryService
+                    ? $this->structuredMemoryService->paginate((int) $contactId, 15)
+                    : ['data' => [], 'total' => 0],
+                'graph'      => $this->graphMemoryService
+                    ? $this->graphMemoryService->paginate((int) $contactId, 15)
+                    : ['data' => [], 'total' => 0],
+                'semantic'   => $this->semanticMemoryService
+                    ? $this->semanticMemoryService->paginate((string) $contactId, 15)
+                    : ['data' => [], 'total' => 0],
+            ];
+
+            return response()->json([
+                'contact_id' => $contactId,
+                'data'       => $data,
+            ]);
+        } catch (\Exception $e) {
+            $this->logService->error('Contact memories fetch failed', [
+                'channel'    => 'memory',
+                'type'       => 'contact_memories',
+                'context'    => ['contact_id' => $contactId, 'error' => $e->getMessage()],
+            ]);
+            return response()->json(['message' => 'Failed to retrieve contact memories', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Trigger memory extraction for all conversations of a contact.
+     */
+    public function extractForContact(Request $request, $contactId)
+    {
+        $contact = Contact::find($contactId);
+        if (! $contact) {
+            return response()->json(['message' => 'Contact not found'], 404);
+        }
+
+        try {
+            $dispatched = 0;
+            $conversations = \App\Models\Conversation::where('contact_id', $contactId)
+                ->orderByDesc('created_at')
+                ->limit(10)
+                ->get();
+
+            foreach ($conversations as $conv) {
+                ExtractMemoryJob::dispatch($conv->id);
+                $dispatched++;
+            }
+
+            $this->logService->info('Bulk memory extraction dispatched for contact', [
+                'channel'    => 'memory',
+                'type'       => 'bulk_extract',
+                'related_id' => $contactId,
+                'user_id'    => $request->user()?->id,
+                'context'    => ['dispatched' => $dispatched],
+            ]);
+
+            return response()->json([
+                'message'    => "Extraction jobs dispatched for {$dispatched} conversations",
+                'contact_id' => $contactId,
+                'dispatched' => $dispatched,
+                'status'     => 'queued',
+            ], 202);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to dispatch extraction', 'error' => $e->getMessage()], 500);
+        }
     }
 }

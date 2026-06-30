@@ -10,6 +10,9 @@ use Illuminate\Support\Str;
 
 class ContactMessageNormalizer
 {
+    private array $existingHashes = [];
+    private array $resolvedContactsCache = [];
+
     /**
      * Normalize and create messages from parsed data
      *
@@ -31,8 +34,15 @@ class ContactMessageNormalizer
             'errors' => [],
         ];
 
+        if (empty($parsedMessages)) {
+            return $result;
+        }
+
         // Get or create message thread
         $thread = $this->getOrCreateThread($contact, $source, $parsedMessages);
+
+        // Preload dedupe hashes for this contact
+        $this->existingHashes = array_flip(ContactMessage::where('contact_id', $contact->id)->pluck('dedupe_hash')->toArray());
 
         foreach ($parsedMessages as $parsedMsg) {
             try {
@@ -40,7 +50,7 @@ class ContactMessageNormalizer
                 $dedupeHash = $this->calculateHash($parsedMsg);
 
                 // Check if message already exists for this contact (per-contact duplicate detection)
-                if ($this->messageExists($dedupeHash, $contact->id)) {
+                if (isset($this->existingHashes[$dedupeHash])) {
                     $result['duplicates']++;
                     continue;
                 }
@@ -74,9 +84,13 @@ class ContactMessageNormalizer
                     'import_batch_id' => $importBatchId,
                 ]);
 
+                // Mark as existing
+                $this->existingHashes[$dedupeHash] = true;
+
                 $result['created']++;
 
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("Message creation failed: " . $e->getMessage() . "\n" . $e->getTraceAsString());
                 $result['errors'][] = [
                     'message' => $parsedMsg['body'] ?? 'Unknown',
                     'error' => $e->getMessage(),
@@ -154,6 +168,11 @@ class ContactMessageNormalizer
         if (empty($senderName) || empty($senderIdentifier)) {
             return null;
         }
+        
+        $cacheKey = $mainContact->id . '_' . $senderIdentifier;
+        if (array_key_exists($cacheKey, $this->resolvedContactsCache)) {
+            return $this->resolvedContactsCache[$cacheKey];
+        }
 
         // Try to find existing contact by identifier
         $contact = Contact::whereHas('identifiers', function ($q) use ($senderIdentifier) {
@@ -162,12 +181,14 @@ class ContactMessageNormalizer
 
         // If found, return it
         if ($contact) {
+            $this->resolvedContactsCache[$cacheKey] = $contact;
             return $contact;
         }
 
         // Try to find by name similarity
         $contact = Contact::where('name', 'LIKE', '%' . $senderName . '%')->first();
         if ($contact) {
+            $this->resolvedContactsCache[$cacheKey] = $contact;
             return $contact;
         }
 
@@ -175,17 +196,21 @@ class ContactMessageNormalizer
         // (only if not just a variation of main contact's name)
         if (!$this->isSameContact($senderName, $mainContact->name)) {
             try {
-                return Contact::create([
+                $contact = Contact::create([
                     'name' => $senderName,
                     'primary_identifier' => $senderIdentifier,
                     'type' => 'individual',
                     'display_name' => $senderName,
                 ]);
+                $this->resolvedContactsCache[$cacheKey] = $contact;
+                return $contact;
             } catch (\Exception $e) {
+                $this->resolvedContactsCache[$cacheKey] = null;
                 return null;
             }
         }
 
+        $this->resolvedContactsCache[$cacheKey] = null;
         return null;
     }
 
@@ -215,6 +240,10 @@ class ContactMessageNormalizer
         $maxLen = max(strlen($clean1), strlen($clean2));
         if ($maxLen === 0) {
             return true;
+        }
+        
+        if ($maxLen > 255) {
+            return false; // Avoid CPU spinning for massive strings
         }
 
         $similarity = 1 - (levenshtein($clean1, $clean2) / $maxLen);

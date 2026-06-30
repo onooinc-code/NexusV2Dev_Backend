@@ -96,11 +96,21 @@ class ContactStatsController extends Controller
         ]);
 
         $contactModel = Contact::findOrFail($contact);
+        $previousMode = $contactModel->reply_mode_override ?? 'global';
+
         $result = $this->replyModeService->setForContact(
             $contactModel,
             $data['mode'] ?? null,
             $request->user()?->id
         );
+
+        $newMode = $data['mode'] ?? 'global';
+        event(new \App\Events\ContactReplyModeChanged(
+            $contactModel,
+            $previousMode,
+            $newMode,
+            $request->user()?->id ?? 0
+        ));
 
         return response()->json(['data' => $result]);
     }

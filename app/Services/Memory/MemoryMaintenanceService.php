@@ -2,196 +2,290 @@
 
 namespace App\Services\Memory;
 
-use Illuminate\Support\Facades\Log;
+use App\Services\AiModelsHub\UniversalAiGatewayService;
+use App\Services\LogService;
+use App\Jobs\VectorizeMemoryJob;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
+/**
+ * MemoryMaintenanceService
+ *
+ * Handles consolidation, decay, and pruning of memory records.
+ * Uses AiModelsHub to intelligently identify and resolve memory conflicts.
+ * Req: 8.1, 8.2, 8.3, 8.6, 8.7
+ */
 class MemoryMaintenanceService
 {
+    public function __construct(
+        protected UniversalAiGatewayService $aiGateway,
+        protected StructuredMemoryService $structuredMemoryService,
+        protected LogService $logService,
+    ) {}
+
     /**
-     * Merge duplicate episodic memories for a contact.
-     * This is a simplified version that merges memories with similar content.
+     * Run full consolidation pipeline for a contact's structured memories.
+     * Identifies duplicates and contradictions, then merges or supersedes as appropriate.
+     * Only processes records updated more than 24 hours ago (Req 8.7).
      *
      * @param int $contactId
-     * @param float $similarityThreshold Threshold for considering memories as duplicates (0-1)
-     * @return int Number of memories merged
+     * @return array Results including 'merged' and 'superseded' counts
      */
-    public function mergeEpisodicMemories(int $contactId, float $similarityThreshold = 0.8): int
+    public function runConsolidation(int $contactId): array
     {
-        try {
-            // Get all episodic memories for the contact
-            $memories = DB::table('messages')
-                ->where('contact_id', $contactId)
-                ->whereJsonContains('metadata->memory_type', 'episodic')
-                ->get();
+        // 1. Load all active structured memories for the contact, excluding recently updated ones
+        $memories = DB::table('structured_memories')
+            ->where('contact_id', $contactId)
+            ->where('status', 'active')
+            ->whereNull('deleted_at')
+            ->where('updated_at', '<', now()->subHours(24))
+            ->get();
 
-            $mergedCount = 0;
+        if ($memories->count() < 2) {
+            return ['merged' => 0, 'superseded' => 0];
+        }
 
-            // Compare each pair of memories (simplified O(n^2) approach)
-            for ($i = 0; $i < $memories->count(); $i++) {
-                for ($j = $i + 1; $j < $memories->count(); $j++) {
-                    $mem1 = $memories[$i];
-                    $mem2 = $memories[$j];
+        // 2. Ask AiModelsHub to identify duplicate / contradictory pairs
+        $pairs = $this->identifyMemoryConflicts($memories->toArray());
 
-                    // Calculate similarity (simple string similarity for content)
-                    $similarity = $this->calculateSimilarity(
-                        $mem1->content,
-                        $mem2->content
-                    );
+        $merged = 0;
+        $superseded = 0;
 
-                    if ($similarity >= $similarityThreshold) {
-                        // Merge: we'll keep the newer one and delete the older one
-                        // In a real system, we might combine the data
-                        $older = $mem1->created_at < $mem2->created_at ? $mem1 : $mem2;
-                        $newer = $mem1->created_at < $mem2->created_at ? $mem2 : $mem1;
+        // 3. Process pairs in a transaction
+        DB::transaction(function () use ($pairs, &$merged, &$superseded) {
+            foreach ($pairs as $pair) {
+                if ($pair['relationship'] === 'duplicate') {
+                    $this->mergeRecords($pair['keep_id'], $pair['remove_id']);
+                    $merged++;
 
-                        // For demonstration, we'll just delete the older one
-                        // and log that we merged them
-                        Log::info('Merging episodic memories', [
-                            'kept' => $newer->id,
-                            'merged' => $older->id,
-                            'similarity' => $similarity
-                        ]);
+                    $this->logService->info('Memory records merged', [
+                        'contact_id' => $pair['contact_id'] ?? null,
+                        'kept_record_id' => $pair['keep_id'],
+                        'removed_record_id' => $pair['remove_id'],
+                        'reason' => 'duplicate',
+                    ]);
+                } elseif ($pair['relationship'] === 'contradictory') {
+                    $this->supersede($pair['keep_id'], $pair['remove_id']);
+                    $superseded++;
 
-                        // Delete the older memory
-                        DB::table('messages')->where('id', $older->id)->delete();
-                        $mergedCount++;
-                    }
+                    $this->logService->info('Memory record superseded', [
+                        'contact_id' => $pair['contact_id'] ?? null,
+                        'kept_record_id' => $pair['keep_id'],
+                        'superseded_record_id' => $pair['remove_id'],
+                        'reason' => 'contradictory',
+                    ]);
                 }
             }
+        });
 
-            return $mergedCount;
-        } catch (\Exception $e) {
-            Log::error('MemoryMaintenanceService::mergeEpisodicMemories failed', [
-                'contactId' => $contactId,
-                'error' => $e->getMessage()
-            ]);
-            return 0;
-        }
+        $this->logService->info('Memory consolidation completed', [
+            'contact_id' => $contactId,
+            'merged_count' => $merged,
+            'superseded_count' => $superseded,
+        ]);
+
+        return compact('merged', 'superseded');
     }
 
     /**
-     * Prune stale memories older than a certain threshold.
+     * Call AiModelsHub to identify memory conflicts.
+     * Returns an array of conflict pairs with relationship type and which to keep/remove.
      *
-     * @param int $daysOld
-     * @return int Number of memories pruned
+     * @param array $memories Array of memory records from structured_memories table
+     * @return array Array of conflict pairs with format:
+     *               [
+     *                   'keep_id' => int,
+     *                   'remove_id' => int,
+     *                   'relationship' => 'duplicate|contradictory',
+     *                   'contact_id' => int
+     *               ]
      */
-    public function pruneStaleMemories(int $daysOld = 30): int
+    protected function identifyMemoryConflicts(array $memories): array
     {
-        try {
-            $cutoffDate = Carbon::now()->subDays($daysOld);
-
-            // Prune episodic memories (messages table)
-            $episodicDeleted = DB::table('messages')
-                ->whereJsonContains('metadata->memory_type', 'episodic')
-                ->where('created_at', '<', $cutoffDate)
-                ->delete();
-
-            // Prune structured memories
-            $structuredDeleted = DB::table('structured_memories')
-                ->where('created_at', '<', $cutoffDate)
-                ->delete();
-
-            // Note: For working memory (Redis), we rely on TTL.
-            // For semantic and graph memory, we would add similar logic.
-
-            $totalDeleted = $episodicDeleted + $structuredDeleted;
-
-            Log::info('Pruned stale memories', [
-                'daysOld' => $daysOld,
-                'episodicDeleted' => $episodicDeleted,
-                'structuredDeleted' => $structuredDeleted,
-                'totalDeleted' => $totalDeleted
-            ]);
-
-            return $totalDeleted;
-        } catch (\Exception $e) {
-            Log::error('MemoryMaintenanceService::pruneStaleMemories failed', [
-                'daysOld' => $daysOld,
-                'error' => $e->getMessage()
-            ]);
-            return 0;
-        }
-    }
-
-    /**
-     * Calculate similarity between two strings (simple implementation).
-     * In a real system, you might use embeddings or more sophisticated algorithms.
-     *
-     * @param string $str1
-     * @param string $str2
-     * @return float Similarity score between 0 and 1
-     */
-    protected function calculateSimilarity(string $str1, string $str2): float
-    {
-        // Simple similarity based on longest common subsequence ratio
-        // This is a placeholder for demonstration
-        if ($str1 === '' && $str2 === '') {
-            return 1.0;
-        }
-        if ($str1 === '' || $str2 === '') {
-            return 0.0;
-        }
-
-        // Convert to lowercase for case-insensitive comparison
-        $str1 = strtolower($str1);
-        $str2 = strtolower($str2);
-
-        // If strings are equal, return 1.0
-        if ($str1 === $str2) {
-            return 1.0;
-        }
-
-        // Simple similarity: ratio of common characters to total length
-        // This is a very basic metric and not suitable for production
-        $longer = strlen($str1) > strlen($str2) ? $str1 : $str2;
-        $shorter = strlen($str1) > strlen($str2) ? $str2 : $str1;
-
-        $matches = 0;
-        $lenShorter = strlen($shorter);
-        for ($i = 0; $i < $lenShorter; $i++) {
-            if (strpos($longer, $shorter[$i]) !== false) {
-                $matches++;
-            }
-        }
-
-        return $matches / strlen($longer);
-    }
-
-    /**
-     * Run memory maintenance tasks (merge and prune).
-     *
-     * @param int $contactId Optional contact ID to limit maintenance to a specific contact
-     * @param int $daysOld Days after which memories are considered stale
-     * @param float $similarityThreshold Threshold for merging duplicates
-     * @return array Results of the maintenance operations
-     */
-    public function runMaintenance(int $contactId = null, int $daysOld = 30, float $similarityThreshold = 0.8): array
-    {
-        $results = [
-            'merged' => 0,
-            'pruned' => 0,
-            'errors' => []
-        ];
+        // Format memories for the AI gateway
+        $formattedMemories = array_map(fn($mem) => [
+            'id' => $mem->id,
+            'fact_type' => $mem->fact_type,
+            'data' => is_string($mem->data) ? json_decode($mem->data, true) : $mem->data,
+            'confidence' => $mem->confidence,
+            'updated_at' => $mem->updated_at,
+            'contact_id' => $mem->contact_id,
+        ], $memories);
 
         try {
-            if ($contactId !== null) {
-                $results['merged'] = $this->mergeEpisodicMemories($contactId, $similarityThreshold);
-            } else {
-                // For global merge, we would need to get all contacts and run for each
-                // For simplicity, we'll skip global merge in this example
-                Log::warning('Global merge not implemented in this example');
+            // Call the AI gateway to analyze for conflicts
+            // This would use a specialized prompt to identify semantic duplicates/contradictions
+            $result = $this->aiGateway->executeWithAgent(
+                app(\App\Models\Agent::class),
+                [
+                    'input' => json_encode($formattedMemories),
+                    'system_prompt' => $this->getConflictAnalysisPrompt(),
+                ]
+            );
+
+            if (!$result['success'] || !isset($result['output'])) {
+                $this->logService->warning('AiModelsHub conflict identification failed', [
+                    'error' => $result['error'] ?? 'Unknown error',
+                ]);
+                return [];
             }
 
-            $results['pruned'] = $this->pruneStaleMemories($daysOld);
+            // Parse the JSON response from the AI
+            $pairs = json_decode($result['output'], true);
+            
+            if (!is_array($pairs)) {
+                $this->logService->warning('Invalid conflict identification response format');
+                return [];
+            }
+
+            return $pairs;
         } catch (\Exception $e) {
-            $results['errors'][] = $e->getMessage();
-            Log::error('MemoryMaintenanceService::runMaintenance failed', [
-                'contactId' => $contactId,
-                'error' => $e->getMessage()
+            $this->logService->error('Memory conflict identification exception', [
+                'error' => $e->getMessage(),
+                'memory_count' => count($formattedMemories),
             ]);
+            return [];
+        }
+    }
+
+    /**
+     * Get the system prompt for conflict analysis.
+     *
+     * @return string
+     */
+    protected function getConflictAnalysisPrompt(): string
+    {
+        return <<<'PROMPT'
+You are analyzing structured memory records for semantic conflicts.
+Identify pairs of records that are:
+1. DUPLICATES: Same fact expressed differently (merge keeping higher confidence)
+2. CONTRADICTORY: Conflicting information about the same fact (keep more recent)
+
+Return a JSON array of conflicts. Each item should have:
+{
+  "keep_id": <record_id of the one to keep>,
+  "remove_id": <record_id to remove/merge>,
+  "relationship": "duplicate" or "contradictory",
+  "reason": "brief explanation",
+  "confidence": <your confidence 0-1>
+}
+
+Only include conflicts with confidence > 0.7. Return empty array if no conflicts found.
+PROMPT;
+    }
+
+    /**
+     * Merge two structured memory records.
+     * Combines data, retains higher confidence, soft-deletes the redundant record,
+     * and dispatches VectorizeMemoryJob for the kept record.
+     *
+     * @param int $keepId ID of record to keep
+     * @param int $removeId ID of record to remove
+     * @return void
+     */
+    private function mergeRecords(int $keepId, int $removeId): void
+    {
+        $keep = DB::table('structured_memories')->find($keepId);
+        $remove = DB::table('structured_memories')->find($removeId);
+
+        if (!$keep || !$remove) {
+            return;
         }
 
-        return $results;
+        // Merge data: combine both data objects, with kept record taking precedence
+        $keepData = is_string($keep->data) ? json_decode($keep->data, true) : $keep->data;
+        $removeData = is_string($remove->data) ? json_decode($remove->data, true) : $remove->data;
+
+        $mergedData = array_merge($removeData ?? [], $keepData ?? []);
+
+        // Retain higher confidence
+        $betterConf = max($keep->confidence, $remove->confidence);
+
+        // Update kept record
+        DB::table('structured_memories')->where('id', $keepId)->update([
+            'data' => json_encode($mergedData),
+            'confidence' => $betterConf,
+            'metadata' => json_encode(array_merge(
+                json_decode($keep->metadata ?? '{}', true),
+                ['merged_from' => $removeId, 'merged_at' => now()->toDateTimeString()]
+            )),
+            'updated_at' => now(),
+        ]);
+
+        // Soft-delete the removed record and mark it as merged
+        DB::table('structured_memories')->where('id', $removeId)->update([
+            'deleted_at' => now(),
+            'metadata' => json_encode(array_merge(
+                json_decode($remove->metadata ?? '{}', true),
+                ['merged_into' => $keepId]
+            )),
+        ]);
+
+        // Record version entry for the kept record
+        $keepContentBefore = $keepData;
+        $this->structuredMemoryService->recordVersion(
+            $keepId,
+            $keep->confidence,
+            $betterConf,
+            'consolidation_merge',
+            $keepContentBefore,
+            $mergedData
+        );
+
+        // Dispatch re-indexing job for kept record
+        VectorizeMemoryJob::dispatch($keepId, json_encode($mergedData));
+    }
+
+    /**
+     * Supersede an older record with a newer one.
+     * Marks the older record as 'superseded' in metadata and soft-deletes it.
+     *
+     * @param int $keepId ID of newer/correct record to keep
+     * @param int $removeId ID of older/incorrect record to supersede
+     * @return void
+     */
+    private function supersede(int $keepId, int $removeId): void
+    {
+        $keep = DB::table('structured_memories')->find($keepId);
+        $remove = DB::table('structured_memories')->find($removeId);
+
+        if (!$keep || !$remove) {
+            return;
+        }
+
+        // Mark the older record as superseded and soft-delete it
+        DB::table('structured_memories')->where('id', $removeId)->update([
+            'deleted_at' => now(),
+            'metadata' => json_encode(array_merge(
+                json_decode($remove->metadata ?? '{}', true),
+                [
+                    'superseded_by' => $keepId,
+                    'superseded_at' => now()->toDateTimeString(),
+                    'reason' => 'contradictory_information',
+                ]
+            )),
+        ]);
+
+        // Record version entry for supersedence
+        $removeData = is_string($remove->data) ? json_decode($remove->data, true) : $remove->data;
+        $this->structuredMemoryService->recordVersion(
+            $removeId,
+            $remove->confidence,
+            null,
+            'consolidation_supersede',
+            $removeData,
+            null
+        );
+    }
+
+    /**
+     * Apply time-decay to structured memories not reinforced recently.
+     * Calls StructuredMemoryService::applyDecay() and returns count of affected records.
+     *
+     * @return int Number of records affected by decay
+     */
+    public function runDecay(): int
+    {
+        return $this->structuredMemoryService->applyDecay();
     }
 }

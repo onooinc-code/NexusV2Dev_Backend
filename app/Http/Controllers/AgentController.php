@@ -109,13 +109,35 @@ class AgentController extends Controller
             'owner_id' => 'nullable|exists:users,id',
             'persona_id' => 'nullable|exists:agent_personas,id',
             'rate_limit_per_minute' => 'nullable|integer|min:1',
+            'temperature' => 'nullable|numeric',
+            'max_tokens' => 'nullable|integer',
+            'guidelines' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $agent->update($validator->validated());
+        $validated = $validator->validated();
+
+        $settings = $agent->settings ?? [];
+        if (array_key_exists('temperature', $validated)) {
+            $settings['temperature'] = $validated['temperature'];
+            unset($validated['temperature']);
+        }
+        if (array_key_exists('max_tokens', $validated)) {
+            $settings['max_tokens'] = $validated['max_tokens'];
+            unset($validated['max_tokens']);
+        }
+        if (array_key_exists('guidelines', $validated)) {
+            $settings['guidelines'] = $validated['guidelines'];
+            unset($validated['guidelines']);
+        }
+        
+        // Merge with existing validated settings if provided
+        $validated['settings'] = array_merge($settings, $validated['settings'] ?? []);
+
+        $agent->update($validated);
 
         $this->logService->info('Agent updated', [
             'channel' => 'agent',

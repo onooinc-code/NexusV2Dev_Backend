@@ -6,7 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class ContactMemoryMaintenanceRun extends Model
 {
-    protected $fillable = [
+    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+protected $fillable = [
         'status',
         'operation',
         'scope',

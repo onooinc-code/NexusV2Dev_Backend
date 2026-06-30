@@ -195,7 +195,7 @@ class ActionTest extends TestCase
         $result = $task->pause();
 
         $this->assertTrue($result);
-        $this->assertEquals('paused', $task->fresh()->status);
+        $this->assertEquals('blocked', $task->fresh()->status);
     }
 
     public function test_task_resume_action_resumes_paused_task(): void
@@ -205,8 +205,9 @@ class ActionTest extends TestCase
         $result = $task->resume();
 
         $this->assertTrue($result);
-        $this->assertEquals('running', $task->fresh()->status);
+        $this->assertEquals('todo', $task->fresh()->status);
     }
+
 
     public function test_task_complete_action_marks_task_completed(): void
     {
@@ -327,20 +328,24 @@ class ActionTest extends TestCase
 
     public function test_log_info_action_creates_log_entry(): void
     {
-        \App\Services\LogService::info('Test info message', [
+        $user = \App\Models\User::factory()->create();
+
+        app(\App\Services\LogService::class)->info('Test info message', [
             'context' => 'test',
-            'user_id' => 1,
+            'user_id' => $user->id,
         ]);
 
         $this->assertDatabaseHas('logs', [
             'level' => 'info',
             'message' => 'Test info message',
+            'user_id' => $user->id,
         ]);
     }
 
+
     public function test_log_error_action_creates_log_entry(): void
     {
-        \App\Services\LogService::error('Test error message', [
+        app(\App\Services\LogService::class)->error('Test error message', [
             'context' => 'test',
             'exception' => new \RuntimeException('Test exception'),
         ]);
@@ -353,11 +358,12 @@ class ActionTest extends TestCase
 
     public function test_log_debug_action_creates_log_entry(): void
     {
-        \App\Services\LogService::debug('Test debug message');
+        app(\App\Services\LogService::class)->debug('Test debug message');
 
         $this->assertDatabaseHas('logs', [
             'level' => 'debug',
             'message' => 'Test debug message',
         ]);
     }
+
 }

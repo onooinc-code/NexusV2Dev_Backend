@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ContactChannel extends Model
 {
-    use SoftDeletes;
+    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+use SoftDeletes;
 
     protected $fillable = [
         'contact_id',

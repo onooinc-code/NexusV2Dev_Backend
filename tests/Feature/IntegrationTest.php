@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Contact;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Memory;
+use App\Jobs\SyncMemoryJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -18,26 +20,32 @@ class IntegrationTest extends TestCase
     {
         $response = $this->postJson('/api/v1/webhooks/waha', [
             'event' => 'message',
-            'data' => [
+            'session' => 'default',
+            'payload' => [
+                'id' => 'msg_123',
                 'chatId' => '1234567890@c.us',
-                'content' => 'Hello from WAHA',
-                'from' => 'Test User',
-                'timestamp' => now()->toISOString(),
+                'body' => 'Hello from WAHA',
+                'from' => '1234567890@c.us',
+                'pushname' => 'Test User',
+                'timestamp' => now()->timestamp,
             ],
         ]);
 
-        $response->assertStatus(200)
-            ->assertJsonPath('status', 'received');
+        $response->assertStatus(202);
     }
 
     public function test_waha_webhook_creates_contact_if_not_exists(): void
     {
         $this->postJson('/api/v1/webhooks/waha', [
             'event' => 'message',
-            'data' => [
+            'session' => 'default',
+            'payload' => [
+                'id' => 'msg_124',
                 'chatId' => '9876543210@c.us',
-                'content' => 'Hello',
-                'from' => 'New Contact',
+                'body' => 'Hello',
+                'from' => '9876543210@c.us',
+                'pushname' => 'New Contact',
+                'timestamp' => now()->timestamp,
             ],
         ]);
 
@@ -48,9 +56,10 @@ class IntegrationTest extends TestCase
 
     public function test_semantic_memory_stores_embeddings(): void
     {
+        $user = \App\Models\User::factory()->create();
         $contact = Contact::factory()->create();
 
-        $response = $this->postJson('/api/v1/memories', [
+        $response = $this->actingAs($user, 'sanctum')->postJson('/api/v1/memories', [
             'type' => 'semantic',
             'contactId' => $contact->id,
             'content' => 'Test semantic memory content',
@@ -63,13 +72,28 @@ class IntegrationTest extends TestCase
 
     public function test_ai_model_execute_with_openai_provider(): void
     {
-        $model = \App\Models\AIModel::factory()->create([
-            'provider' => 'openai',
-            'model' => 'gpt-4',
-            'api_key' => 'test-key',
+        $this->mock(\App\Services\AiModelsHub\EncryptedApiKeyStorage::class, function ($mock) {
+            $mock->shouldReceive('getDecryptedKey')->andReturn('test-api-key');
+        });
+
+        \Illuminate\Support\Facades\Http::fake([
+            '*' => \Illuminate\Support\Facades\Http::response(['choices' => [['message' => ['content' => 'Hello']]]], 200)
         ]);
 
-        $response = $this->postJson('/api/v1/ai-models/execute', [
+        $user = \App\Models\User::factory()->create();
+        $provider = \App\Models\AIProvider::factory()->create(['name' => 'openai']);
+        $model = \App\Models\AIModel::factory()->create([
+            'provider_id' => $provider->id,
+            'name' => 'gpt-4',
+        ]);
+        \App\Models\IntentRouting::create([
+            'intent_name' => 'chat',
+            'default_provider_id' => $provider->id,
+            'default_model_id' => $model->id,
+        ]);
+
+        $response = $this->actingAs($user, 'sanctum')->postJson('/api/v1/ai-models/route', [
+            'intent' => 'chat',
             'model_id' => $model->id,
             'prompt' => 'Hello, world!',
         ]);
@@ -79,13 +103,28 @@ class IntegrationTest extends TestCase
 
     public function test_ai_model_execute_with_gemini_provider(): void
     {
-        $model = \App\Models\AIModel::factory()->create([
-            'provider' => 'google',
-            'model' => 'gemini-pro',
-            'api_key' => 'test-key',
+        $this->mock(\App\Services\AiModelsHub\EncryptedApiKeyStorage::class, function ($mock) {
+            $mock->shouldReceive('getDecryptedKey')->andReturn('test-api-key');
+        });
+
+        \Illuminate\Support\Facades\Http::fake([
+            '*' => \Illuminate\Support\Facades\Http::response(['candidates' => [['content' => ['parts' => [['text' => 'Hello']]]]]], 200)
         ]);
 
-        $response = $this->postJson('/api/v1/ai-models/execute', [
+        $user = \App\Models\User::factory()->create();
+        $provider = \App\Models\AIProvider::factory()->create(['name' => 'google']);
+        $model = \App\Models\AIModel::factory()->create([
+            'provider_id' => $provider->id,
+            'name' => 'gemini-pro',
+        ]);
+        \App\Models\IntentRouting::create([
+            'intent_name' => 'chat',
+            'default_provider_id' => $provider->id,
+            'default_model_id' => $model->id,
+        ]);
+
+        $response = $this->actingAs($user, 'sanctum')->postJson('/api/v1/ai-models/route', [
+            'intent' => 'chat',
             'model_id' => $model->id,
             'prompt' => 'Hello, world!',
         ]);
@@ -101,17 +140,21 @@ class IntegrationTest extends TestCase
 
         $webhookResponse = $this->postJson('/api/v1/webhooks/waha', [
             'event' => 'message',
-            'data' => [
+            'session' => 'default',
+            'payload' => [
+                'id' => 'msg_125',
                 'chatId' => '1234567890@c.us',
-                'content' => 'Hello, how are you?',
-                'from' => $contact->name,
+                'body' => 'Hello, how are you?',
+                'from' => '1234567890@c.us',
+                'pushname' => $contact->name,
+                'timestamp' => now()->timestamp,
             ],
         ]);
 
-        $webhookResponse->assertStatus(200);
+        $webhookResponse->assertStatus(202);
 
-        $this->assertDatabaseHas('messages', [
-            'content' => 'Hello, how are you?',
+        $this->assertDatabaseHas('peopleconnect_messages', [
+            'body' => 'Hello, how are you?',
         ]);
     }
 
@@ -126,9 +169,16 @@ class IntegrationTest extends TestCase
             'content' => 'Sync test content',
         ]);
 
-        $job = new SyncMemoryJob($memory);
-        $result = $job->handle(new \App\Services\Memory\SemanticMemoryService());
+        $job = new SyncMemoryJob($memory->contact_id, $memory->type, app(\App\Services\LogService::class));
+        $result = $job->handle(
+            app(\App\Services\Memory\WorkingMemoryService::class),
+            app(\App\Services\Memory\EpisodicMemoryService::class),
+            app(\App\Services\Memory\SemanticMemoryService::class),
+            app(\App\Services\Memory\StructuredMemoryService::class),
+            app(\App\Services\Memory\GraphMemoryService::class)
+        );
 
-        $this->assertTrue($result);
+        // Job has no return value on success, returns null
+        $this->assertNull($result);
     }
 }

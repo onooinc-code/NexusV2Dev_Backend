@@ -3,7 +3,7 @@
 namespace App\Services\Memory;
 
 use App\Models\Contact;
-use App\Models\Message;
+use App\Models\Memory;
 use Illuminate\Support\Facades\Log;
 
 class EpisodicMemoryService
@@ -28,22 +28,22 @@ class EpisodicMemoryService
                 return false;
             }
 
-            // Store episodic memory (using messages table for now)
-            $message = Message::create([
+            // Store episodic memory
+            $memory = Memory::create([
                 'contact_id' => $contactId,
+                'type' => 'episodic',
+                'source' => 'system',
                 'content' => json_encode([
                     'event_type' => $eventType,
                     'data' => $data,
                     'timestamp' => now()->toDateTimeString()
                 ]),
-                'sender' => 'system',
                 'metadata' => [
-                    'memory_type' => 'episodic',
                     'event_type' => $eventType
                 ]
             ]);
 
-            return $message !== null;
+            return $memory !== null;
         } catch (\Exception $e) {
             Log::error('EpisodicMemoryService::storeEvent failed', [
                 'contactId' => $contactId,
@@ -76,17 +76,17 @@ class EpisodicMemoryService
             }
 
             // Store message as episodic memory
-            $message = Message::create([
+            $memory = Memory::create([
                 'contact_id' => $contactId,
+                'type' => 'episodic',
+                'source' => $sender,
                 'content' => $content,
-                'sender' => $sender,
                 'metadata' => array_merge([
-                    'memory_type' => 'episodic',
                     'stored_at' => now()->toDateTimeString()
                 ], $metadata)
             ]);
 
-            return $message !== null;
+            return $memory !== null;
         } catch (\Exception $e) {
             Log::error('EpisodicMemoryService::storeMessage failed', [
                 'contactId' => $contactId,
@@ -108,8 +108,8 @@ class EpisodicMemoryService
     public function retrieve(int $contactId, int $limit = 50, int $offset = 0)
     {
         try {
-            return Message::where('contact_id', $contactId)
-                ->whereJsonContains('metadata->memory_type', 'episodic')
+            return Memory::where('contact_id', $contactId)
+                ->where('type', 'episodic')
                 ->orderBy('created_at', 'desc')
                 ->offset($offset)
                 ->limit($limit)
@@ -134,8 +134,8 @@ class EpisodicMemoryService
     public function retrieveByEventType(int $contactId, string $eventType, int $limit = 50)
     {
         try {
-            return Message::where('contact_id', $contactId)
-                ->whereJsonContains('metadata->memory_type', 'episodic')
+            return Memory::where('contact_id', $contactId)
+                ->where('type', 'episodic')
                 ->whereJsonContains('metadata->event_type', $eventType)
                 ->orderBy('created_at', 'desc')
                 ->limit($limit)
@@ -153,29 +153,29 @@ class EpisodicMemoryService
     /**
      * Delete episodic memory
      *
-     * @param int $messageId
+     * @param int $memoryId
      * @return bool
      */
-    public function delete(int $messageId): bool
+    public function delete(int $memoryId): bool
     {
         try {
-            $message = Message::find($messageId);
-            if (!$message) {
+            $memory = Memory::find($memoryId);
+            if (!$memory) {
                 return false;
             }
 
             // Verify it's an episodic memory before deleting
-            if (!isset($message->metadata['memory_type']) || $message->metadata['memory_type'] !== 'episodic') {
+            if ($memory->type !== 'episodic') {
                 Log::warning('EpisodicMemoryService::delete - Attempted to delete non-episodic memory', [
-                    'messageId' => $messageId
+                    'memoryId' => $memoryId
                 ]);
                 return false;
             }
 
-            return $message->delete();
+            return $memory->delete();
         } catch (\Exception $e) {
             Log::error('EpisodicMemoryService::delete failed', [
-                'messageId' => $messageId,
+                'memoryId' => $memoryId,
                 'error' => $e->getMessage()
             ]);
             return false;
@@ -191,8 +191,8 @@ class EpisodicMemoryService
     public function count(int $contactId): int
     {
         try {
-            return Message::where('contact_id', $contactId)
-                ->whereJsonContains('metadata->memory_type', 'episodic')
+            return Memory::where('contact_id', $contactId)
+                ->where('type', 'episodic')
                 ->count();
         } catch (\Exception $e) {
             Log::error('EpisodicMemoryService::count failed', [
@@ -200,6 +200,52 @@ class EpisodicMemoryService
                 'error' => $e->getMessage()
             ]);
             return 0;
+        }
+    }
+
+    /**
+     * Paginate episodic memories
+     *
+     * @param int|null $contactId
+     * @param int $perPage
+     * @param string $sort
+     * @return array
+     */
+    public function paginate(int $contactId = null, int $perPage = 25, string $sort = 'created_at'): array
+    {
+        try {
+            $query = Memory::where('type', 'episodic');
+
+            if ($contactId !== null) {
+                $query->where('contact_id', $contactId);
+            }
+
+            $query->where(function($q) {
+                $q->whereNull('expires_at')
+                  ->orWhere('expires_at', '>', now());
+            });
+
+            $paginator = $query->orderBy($sort, 'desc')->paginate($perPage);
+
+            return [
+                'data' => $paginator->items(),
+                'current_page' => $paginator->currentPage(),
+                'total' => $paginator->total(),
+                'per_page' => $paginator->perPage(),
+                'last_page' => $paginator->lastPage(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('EpisodicMemoryService::paginate failed', [
+                'contactId' => $contactId,
+                'error' => $e->getMessage()
+            ]);
+            return [
+                'data' => [],
+                'current_page' => 1,
+                'total' => 0,
+                'per_page' => $perPage,
+                'last_page' => 1,
+            ];
         }
     }
 }

@@ -79,7 +79,16 @@ class WorkflowEventTriggerService
     public function registerWildcardListener(): void
     {
         Event::listen('*', function (string $eventName, array $data) {
-            if (str_starts_with($eventName, 'Illuminate\\') || str_starts_with($eventName, 'eloquent.')) {
+            if (
+                str_starts_with($eventName, 'Illuminate\\') ||
+                str_starts_with($eventName, 'eloquent.') ||
+                str_starts_with($eventName, 'bootstrapping: ') ||
+                str_starts_with($eventName, 'bootstrapped: ') ||
+                str_starts_with($eventName, 'artisan.') ||
+                str_starts_with($eventName, 'console.') ||
+                str_starts_with($eventName, 'cache.') ||
+                str_starts_with($eventName, 'queue.')
+            ) {
                 return;
             }
 

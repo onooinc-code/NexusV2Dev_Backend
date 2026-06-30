@@ -140,17 +140,27 @@ class LogService
     public function log(string $level, string $message, array $context = []): Log
     {
         // Write to Laravel's log channels
-        LaravelLog::stack([$this->channel])->log($level, $message, $context);
+        try {
+            LaravelLog::stack([$this->channel])->log($level, $message, $context);
+        } catch (\Throwable) {
+            // Never fail if the Laravel logger is misconfigured
+        }
+
+        // Extract stored context: if caller wrapped it in a 'context' key, unwrap it
+        $storedContext = Arr::except($context, ['channel', 'type', 'user_id', 'related_id', 'related_type']);
+        if (count($storedContext) === 1 && array_key_exists('context', $storedContext)) {
+            $storedContext = $storedContext['context'] ?? [];
+        }
 
         // Persist to database
         $log = Log::create([
-            'level' => $level,
-            'channel' => $context['channel'] ?? 'app',
-            'message' => $message,
-            'context' => Arr::except($context, ['channel', 'type', 'user_id', 'related_id', 'related_type']),
-            'type' => $context['type'] ?? Log::TYPE_APPLICATION,
-            'user_id' => $context['user_id'] ?? null,
-            'related_id' => $context['related_id'] ?? null,
+            'level'        => $level,
+            'channel'      => $context['channel'] ?? 'app',
+            'message'      => $message,
+            'context'      => $storedContext,
+            'type'         => $context['type'] ?? Log::TYPE_APPLICATION,
+            'user_id'      => $context['user_id'] ?? null,
+            'related_id'   => $context['related_id'] ?? null,
             'related_type' => $context['related_type'] ?? null,
         ]);
 
@@ -162,14 +172,22 @@ class LogService
      *
      * @param string $level
      * @param string $message
-     * @param mixed $model
-     * @param array<string, mixed> $context
+     * @param string $entityName  Human-readable entity label (e.g. 'task', 'agent')
+     * @param string $relatedType Fully-qualified model class or morph alias
+     * @param int    $relatedId   Primary key of the related record
+     * @param array  $context     Optional extra context
      * @return Log
      */
-    public function logRelated(string $level, string $message, $model, array $context = []): Log
-    {
-        $context['related_id'] = $model->getKey();
-        $context['related_type'] = $model->getMorphClass();
+    public function logRelated(
+        string $level,
+        string $message,
+        string $entityName,
+        string $relatedType,
+        int $relatedId,
+        array $context = []
+    ): Log {
+        $context['related_id']   = $relatedId;
+        $context['related_type'] = $relatedType;
         return $this->log($level, $message, $context);
     }
 
@@ -263,17 +281,32 @@ class LogService
      */
     public function getChannels(): array
     {
+        return Log::select('channel')
+            ->whereNotNull('channel')
+            ->distinct()
+            ->orderBy('channel')
+            ->pluck('channel')
+            ->toArray();
+    }
+
+    /**
+     * Get all channel definitions with labels.
+     *
+     * @return array
+     */
+    public function getChannelDefinitions(): array
+    {
         return [
-            ['value' => Log::CHANNEL_AUTH, 'label' => 'Authentication'],
-            ['value' => Log::CHANNEL_SECURITY, 'label' => 'Security'],
-            ['value' => Log::CHANNEL_API, 'label' => 'API'],
-            ['value' => Log::CHANNEL_WORKFLOW, 'label' => 'Workflow'],
-            ['value' => Log::CHANNEL_AGENT, 'label' => 'Agent'],
-            ['value' => Log::CHANNEL_AI, 'label' => 'AI'],
-            ['value' => Log::CHANNEL_SYSTEM, 'label' => 'System'],
-            ['value' => Log::CHANNEL_DATABASE, 'label' => 'Database'],
-            ['value' => Log::CHANNEL_CACHE, 'label' => 'Cache'],
-            ['value' => Log::CHANNEL_QUEUE, 'label' => 'Queue'],
+            ['value' => Log::CHANNEL_AUTH,     'label' => 'Authentication'],
+            ['value' => Log::CHANNEL_SECURITY,  'label' => 'Security'],
+            ['value' => Log::CHANNEL_API,       'label' => 'API'],
+            ['value' => Log::CHANNEL_WORKFLOW,  'label' => 'Workflow'],
+            ['value' => Log::CHANNEL_AGENT,     'label' => 'Agent'],
+            ['value' => Log::CHANNEL_AI,        'label' => 'AI'],
+            ['value' => Log::CHANNEL_SYSTEM,    'label' => 'System'],
+            ['value' => Log::CHANNEL_DATABASE,  'label' => 'Database'],
+            ['value' => Log::CHANNEL_CACHE,     'label' => 'Cache'],
+            ['value' => Log::CHANNEL_QUEUE,     'label' => 'Queue'],
         ];
     }
 
@@ -323,5 +356,13 @@ class LogService
     public function clearOldLogs(int $days): int
     {
         return Log::where('created_at', '<', now()->subDays($days))->delete();
+    }
+
+    /**
+     * Handle dynamic static calls to the service.
+     */
+    public static function __callStatic($method, $parameters)
+    {
+        return (new static)->$method(...$parameters);
     }
 }

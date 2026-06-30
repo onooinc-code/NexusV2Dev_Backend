@@ -40,9 +40,27 @@ class DynamicRestProvider implements AiProviderInterface
         ];
 
         if ($apiKey && $record && $record->auth_header_format) {
-            // Replace {KEY} or {API_KEY} in the format string
-            $authValue = str_replace(['{KEY}', '{API_KEY}'], $apiKey, $record->auth_header_format);
-            $headers['Authorization'] = $authValue;
+            $authFormat = $record->auth_header_format;
+            
+            // Support custom headers format like "x-goog-api-key: {key}" or "Authorization: Bearer {key}"
+            if (str_contains($authFormat, ':')) {
+                [$headerName, $headerValFormat] = explode(':', $authFormat, 2);
+                $authValue = str_ireplace(['{KEY}', '{API_KEY}', '{key}'], $apiKey, $headerValFormat);
+                $headers[trim($headerName)] = trim($authValue);
+            } else {
+                $authValue = str_ireplace(['{KEY}', '{API_KEY}', '{key}'], $apiKey, $authFormat);
+                $parts = explode(' ', trim($authValue), 2);
+                if (count($parts) === 2) {
+                    $prefix = strtolower($parts[0]);
+                    if ($prefix === 'bearer' || $prefix === 'key') {
+                        $headers['Authorization'] = trim($authValue);
+                    } else {
+                        $headers[trim($parts[0])] = trim($parts[1]);
+                    }
+                } else {
+                    $headers['Authorization'] = $authValue;
+                }
+            }
         } elseif ($apiKey) {
             // Default to Bearer if format isn't specified
             $headers['Authorization'] = 'Bearer ' . $apiKey;
@@ -65,7 +83,10 @@ class DynamicRestProvider implements AiProviderInterface
 
         try {
             $url = rtrim($record->base_url, '/') . '/' . ltrim($record->models_fetch_endpoint, '/');
-            $response = Http::withHeaders($this->buildHeaders())->timeout(15)->get($url);
+            $response = Http::withHeaders($this->buildHeaders())
+                ->withOptions(['verify' => config('services.ai.verify_ssl', true)])
+                ->timeout(15)
+                ->get($url);
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -146,7 +167,9 @@ class DynamicRestProvider implements AiProviderInterface
         }
 
         try {
-            $response = Http::withHeaders($this->buildHeaders())->post($url, $payload);
+            $response = Http::withHeaders($this->buildHeaders())
+                ->withOptions(['verify' => config('services.ai.verify_ssl', true)])
+                ->post($url, $payload);
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -188,7 +211,9 @@ class DynamicRestProvider implements AiProviderInterface
         ];
 
         try {
-            $response = Http::withHeaders($this->buildHeaders())->post($url, $payload);
+            $response = Http::withHeaders($this->buildHeaders())
+                ->withOptions(['verify' => config('services.ai.verify_ssl', true)])
+                ->post($url, $payload);
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -228,20 +253,47 @@ class DynamicRestProvider implements AiProviderInterface
     public function getHealthStatus(): array
     {
         $record = $this->getProviderRecord();
-        if (!$record || !$record->test_endpoint) {
+        if (!$record) {
             return ['status' => 'unknown'];
         }
 
-        $url = rtrim($record->base_url, '/') . '/' . ltrim($record->test_endpoint, '/');
-        
+        $endpoint = $record->test_endpoint ?: $record->models_fetch_endpoint;
+        if (!$endpoint) {
+            return ['status' => 'unknown', 'error' => 'No test or models endpoint configured'];
+        }
+
+        // If no API key is stored, skip the live request — it will always 401
+        $apiKey = $this->getApiKey();
+        if (!$apiKey) {
+            return ['status' => 'no_key', 'error' => 'No API key configured for this provider'];
+        }
+
+        $url = rtrim($record->base_url, '/') . '/' . ltrim($endpoint, '/');
+
         try {
-            $response = Http::withHeaders($this->buildHeaders())->get($url);
-            return [
-                'status' => $response->successful() ? 'healthy' : 'unhealthy',
-                'latency' => 100 // Can be measured dynamically
+            $start = microtime(true);
+            $response = Http::withHeaders($this->buildHeaders())
+                ->withOptions(['verify' => config('services.ai.verify_ssl', true)])
+                ->timeout(10)
+                ->get($url);
+            $latencyMs = (int) round((microtime(true) - $start) * 1000);
+
+            $result = [
+                'status'      => $response->successful() ? 'healthy' : 'unhealthy',
+                'latency'     => $latencyMs,
+                'http_status' => $response->status(),
+                'url'         => $url,
             ];
+
+            // Include the provider's error body so frontend can surface it
+            if (!$response->successful()) {
+                $body = $response->json();
+                $result['provider_error'] = $body['error']['message'] ?? $body['message'] ?? $response->body();
+            }
+
+            return $result;
         } catch (\Exception $e) {
-            return ['status' => 'offline', 'error' => $e->getMessage()];
+            return ['status' => 'offline', 'error' => $e->getMessage(), 'url' => $url];
         }
     }
 

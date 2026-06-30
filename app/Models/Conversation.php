@@ -40,4 +40,9 @@ class Conversation extends BaseModel
     {
         return $this->hasMany(ConversationSession::class);
     }
+
+    public function workspace(): BelongsTo
+    {
+        return $this->belongsTo(Workspace::class);
+    }
 }

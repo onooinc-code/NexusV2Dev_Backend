@@ -9,11 +9,13 @@ use App\Services\LogService;
 class AgentToolExecutor
 {
     protected AgentToolRegistry $registry;
+    protected ?LogService $logService;
     protected array $executionHistory = [];
 
-    public function __construct(AgentToolRegistry $registry, protected LogService $logService)
+    public function __construct(AgentToolRegistry $registry, ?LogService $logService = null)
     {
-        $this->registry = $registry;
+        $this->registry   = $registry;
+        $this->logService = $logService;
     }
 
     public function executeTool(Agent $agent, string $toolName, array $params = []): array
@@ -38,7 +40,7 @@ class AgentToolExecutor
                 'executed_at' => now()->toISOString(),
             ];
 
-            $this->logService->info("Tool executed successfully: {$toolName} by agent {$agent->name}", [
+            $this->logService?->info("Tool executed successfully: {$toolName} by agent {$agent->name}", [
                 'channel' => 'agent',
                 'type' => 'tool',
                 'related_id' => $agent->id,
@@ -65,7 +67,7 @@ class AgentToolExecutor
                 'executed_at' => now()->toISOString(),
             ];
 
-            $this->logService->error("Tool execution failed: {$toolName} by agent {$agent->name}", [
+            $this->logService?->error("Tool execution failed: {$toolName} by agent {$agent->name}", [
                 'channel' => 'agent',
                 'type' => 'tool',
                 'related_id' => $agent->id,

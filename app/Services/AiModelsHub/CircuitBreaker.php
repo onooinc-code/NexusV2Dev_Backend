@@ -8,9 +8,56 @@ use Exception;
 
 class CircuitBreaker
 {
+    protected $serviceName;
     protected $failureThreshold = 5;
     protected $recoveryTimeout = 60; // seconds
     protected $cachePrefix = 'circuit_breaker:';
+
+    public function __construct(string $serviceName = 'default', int $failureThreshold = 5, int $recoveryTimeout = 60)
+    {
+        $this->serviceName = $serviceName;
+        $this->failureThreshold = $failureThreshold;
+        $this->recoveryTimeout = $recoveryTimeout;
+    }
+
+    public function isOpen($serviceName = null)
+    {
+        $service = $serviceName ?? $this->serviceName;
+        return $this->isCircuitOpen($service);
+    }
+
+    public function execute(callable $callback)
+    {
+        if ($this->isOpen()) {
+            throw new \Exception('Circuit breaker is open');
+        }
+
+        try {
+            $result = $callback();
+            $this->recordSuccess($this->serviceName);
+            return $result;
+        } catch (\Exception $e) {
+            $this->recordFailure($this->serviceName);
+            throw $e;
+        }
+    }
+
+    public function getStatus($serviceName = null)
+    {
+        $service = $serviceName ?? $this->serviceName;
+        $stateKey = $this->cachePrefix . "provider:{$service}:state";
+        $failureKey = $this->cachePrefix . "provider:{$service}:failures";
+        
+        $state = Cache::get($stateKey, 'closed');
+        $failures = (int) Cache::get($failureKey, 0);
+        
+        return [
+            'state' => $state,
+            'failure_count' => $failures,
+            'failure_threshold' => $this->failureThreshold,
+            'timeout_seconds' => $this->recoveryTimeout,
+        ];
+    }
 
     /**
      * Execute a callback with circuit breaker protection and fallback

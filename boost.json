@@ -1,0 +1,18 @@
+{
+    "agents": [
+        "antigravity"
+    ],
+    "cloud": true,
+    "guidelines": true,
+    "packages": [
+        "barryvdh/laravel-debugbar"
+    ],
+    "skills": [
+        "laravel-best-practices",
+        "configuring-horizon",
+        "echo-development",
+        "tailwindcss-development",
+        "debug-using-debugbar",
+        "deploying-laravel-cloud"
+    ]
+}

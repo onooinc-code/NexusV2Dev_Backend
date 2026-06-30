@@ -41,6 +41,15 @@ return [
         'session_id' => env('WHATSAPP_SESSION_ID', 'default'),
     ],
 
+    'waha' => [
+        'url' => env('WAHA_API_URL', 'http://localhost:3000'),
+        'api_url' => env('WAHA_API_URL', 'http://localhost:3000'),
+        'api_key' => env('WAHA_API_KEY', env('WAHA_API_TOKEN')),
+        'api_token' => env('WAHA_API_TOKEN', env('WAHA_API_KEY')),
+        'webhook_secret' => env('WAHA_WEBHOOK_SECRET'),
+        'session' => env('WAHA_SESSION', 'default'),
+    ],
+
     'pinecone' => [
         'key' => env('PINECONE_API_KEY'),
         'environment' => env('PINECONE_ENVIRONMENT'),
@@ -48,6 +57,7 @@ return [
     ],
 
     'ai' => [
+        'verify_ssl' => env('AI_VERIFY_SSL', true),
         'gemini' => [
             'key' => env('GEMINI_API_KEY'),
         ],

@@ -7,9 +7,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class AgentRuntimeLog extends BaseModel
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
 
     protected $fillable = [
+        'id',
         'agent_id',
         'task_id',
         'trace_id',

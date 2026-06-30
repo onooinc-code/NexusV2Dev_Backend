@@ -26,12 +26,16 @@ class ContactIntelligenceExtractionPipeline
             $contact = $run->contact;
             $options = $run->options ?? [];
             
-            // 1. Gather recent messages context
-            $messages = $contact->messages()
+            // 1. Gather recent messages context and collect source message IDs
+            $messagesCollection = $contact->messages()
                 ->orderByDesc('source_timestamp')
                 ->take(100) // max context window for analysis
-                ->get()
-                ->map(fn($m) => "[{$m->direction}] {$m->body}")
+                ->get();
+
+            $sourceMessageIds = $messagesCollection->pluck('id')->toArray();
+            $sourceMessages = $messagesCollection->keyBy('id');
+
+            $messages = $messagesCollection->map(fn($m) => "[{$m->direction}] {$m->body}")
                 ->join("\n");
 
             if (empty(trim($messages))) {
@@ -72,20 +76,25 @@ class ContactIntelligenceExtractionPipeline
                     throw new Exception("Universal AI Gateway returned invalid JSON.");
                 }
             } catch (\Throwable $e) {
-                $this->logService->warning("Universal AI Gateway execution failed, using mock data for analysis", [
+                // On AI failure, do NOT write mock findings
+                // Instead, record as failed and return
+                $this->logService->error("Universal AI Gateway execution failed", [
                     'error' => $e->getMessage()
                 ]);
+                $run->update([
+                    'status' => 'failed',
+                    'completed_at' => now(),
+                    'error_message' => $e->getMessage()
+                ]);
                 
-                // Fallback to mock data to keep UI functional
-                $result = [
-                    'topics' => ['pricing', 'support', 'onboarding'],
-                    'persona' => 'Direct and formal communicator, prefers quick resolutions.',
-                    'emotional_baseline' => 'neutral to positive',
-                    'suggested_rules' => ['Do not contact on weekends', 'Prefers email for contracts']
-                ];
+                $this->logService->error("Contact analysis failed — AI unavailable", [
+                    'run_id' => $run->id,
+                    'error'  => $e->getMessage(),
+                ]);
+                return;
             }
 
-            // 4. Store Findings — each finding type is isolated so one failure doesn't abort others
+            // 4. Store Findings with evidence — each finding type is isolated so one failure doesn't abort others
             $findingTypes = [
                 'topics'           => $result['topics'] ?? null,
                 'persona'          => $result['persona'] ?? null,
@@ -99,10 +108,26 @@ class ContactIntelligenceExtractionPipeline
                 }
 
                 try {
+                    // Build evidence references from source messages
+                    $evidenceReferences = [];
+                    foreach (array_slice($sourceMessageIds, 0, 5) as $msgId) {
+                        $msg = $sourceMessages->get($msgId);
+                        if ($msg && !empty($msg->body)) {
+                            $evidenceReferences[] = [
+                                'message_id' => $msgId,
+                                'excerpt' => substr($msg->body, 0, 100),
+                                'direction' => $msg->direction,
+                                'timestamp' => $msg->source_timestamp?->toIso8601String(),
+                            ];
+                        }
+                    }
+
                     $run->findings()->create([
                         'contact_id'       => $contact->id,
                         'finding_type'     => $findingType,
                         'content'          => $content,
+                        'source_message_ids' => $sourceMessageIds,
+                        'evidence_references' => $evidenceReferences,
                         'confidence_score' => match ($findingType) {
                             'topics'             => 0.85,
                             'persona'            => 0.90,

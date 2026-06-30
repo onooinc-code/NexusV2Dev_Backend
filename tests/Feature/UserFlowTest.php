@@ -41,7 +41,7 @@ class UserFlowTest extends TestCase
             'sender' => 'agent',
         ]);
 
-        $memoryResponse->assertStatus(201);
+        $memoryResponse->dump()->assertStatus(201);
 
         $analyticsResponse = $this->getJson("/api/v1/contacts/{$contactId}/analytics");
         $analyticsResponse->assertStatus(200);
@@ -64,12 +64,18 @@ class UserFlowTest extends TestCase
             ],
         ]);
 
+        $registry = app(\App\Services\Workflows\WorkflowRegistry::class);
         $executeResponse = $this->postJson("/api/v1/workflows/{$workflow->id}/execute");
-        $executeResponse->assertStatus(200);
+        $executeResponse->assertStatus(202);
 
         $progressResponse = $this->getJson("/api/v1/workflows/{$workflow->id}/progress");
         $progressResponse->assertStatus(200)
-            ->assertJsonStructure(['data' => ['progress', 'total_steps', 'completed_steps']]);
+            ->assertJsonStructure([
+                'data' => [
+                    'workflow' => ['progress', 'total_steps', 'completed_steps'],
+                    'latest_execution'
+                ]
+            ]);
     }
 
     // ─── Agent Task Flow ─────────────────────────────────────────────────
@@ -138,7 +144,7 @@ class UserFlowTest extends TestCase
 
     public function test_settings_management_flow(): void
     {
-        $user = \App\Models\User::factory()->create();
+        $user = \App\Models\User::factory()->create(['is_admin' => true, 'is_super_admin' => true]);
         $this->actingAs($user, 'sanctum');
 
         $createResponse = $this->postJson('/api/v1/settings', [
@@ -159,7 +165,7 @@ class UserFlowTest extends TestCase
 
         $this->assertDatabaseHas('settings', [
             'key' => 'test_feature_flag',
-            'value' => 'false',
+            'value' => '"false"',
         ]);
     }
 }

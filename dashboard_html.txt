@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="EsaVxeGgx1xBM4isz8OV4rYVf0kU7DaitUHOWfkC">
+    <title>NexusHub — Nexus V2</title>
+
+    <!-- Google Fonts: Inter + Outfit + JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <!-- DataTables -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <!-- NProgress -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.css">
+    <!-- Nexus Design System -->
+    <link href="http://127.0.0.1:8000/css/custom.css" rel="stylesheet">
+
+    <style>
+.health-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    border: 1px solid transparent;
+}
+.health-ok  { background: hsla(142,72%,29%,0.15); border-color: hsla(142,72%,29%,0.35); color: hsl(142,76%,60%); }
+.health-warn { background: var(--amber-dim); border-color: hsla(38,92%,50%,0.35); color: hsl(38,92%,65%); }
+.health-err  { background: var(--error-dim); border-color: hsla(0,84%,60%,0.35); color: hsl(0,84%,70%); }
+
+.metric-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    padding: 22px 24px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.25s var(--ease-smooth);
+    height: 100%;
+}
+.metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent-color, var(--nexus-blue));
+}
+.metric-card::after {
+    content: '';
+    position: absolute;
+    top: -30px; right: -30px;
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    background: var(--accent-color, var(--nexus-blue));
+    opacity: 0.05;
+    filter: blur(20px);
+}
+.metric-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--glass-border-hover);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+}
+.metric-value {
+    font-family: 'Outfit', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-primary);
+    transition: color 0.5s ease;
+}
+.metric-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 8px;
+}
+.metric-icon {
+    position: absolute;
+    top: 20px; right: 20px;
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
+
+/* Telemetry Feed */
+.telemetry-feed {
+    background: hsl(224, 71%, 2%);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    height: 240px;
+    overflow-y: auto;
+    padding: 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    line-height: 1.8;
+}
+.telemetry-feed::-webkit-scrollbar { width: 3px; }
+.telemetry-feed::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); }
+
+.tele-line { display: flex; gap: 12px; }
+.tele-time { color: var(--text-muted); flex-shrink: 0; }
+.tele-level-INFO    { color: var(--nexus-teal); }
+.tele-level-SUCCESS { color: hsl(142,76%,55%); }
+.tele-level-WARN    { color: var(--amber); }
+.tele-level-ERROR   { color: var(--error); }
+.tele-msg { color: var(--text-secondary); }
+
+/* AI Chat */
+.ai-chat-area {
+    height: 280px;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.ai-chat-area::-webkit-scrollbar { width: 3px; }
+.ai-chat-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); }
+
+.chat-bubble {
+    max-width: 80%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    line-height: 1.6;
+}
+.chat-bubble.user {
+    margin-left: auto;
+    background: var(--nexus-blue-dim);
+    border: 1px solid var(--nexus-blue-glow);
+    color: var(--text-primary);
+}
+.chat-bubble.assistant {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+}
+.chat-bubble.thinking {
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed var(--glass-border);
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.75rem;
+}
+
+/* Section Panel */
+.section-panel {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    overflow: hidden;
+}
+.section-panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.section-panel-header h6 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+.section-panel-body { padding: 16px 20px; }
+</style>
+</head>
+<body>
+
+    <!-- ── Autopilot Warning Banner ── -->
+    <div id="autopilot-banner" class="autopilot-warning-banner nx-autopilot-warning-pulse">
+        <i class="fa-solid fa-triangle-exclamation me-2"></i>
+        ⚠️ SYSTEM AUTOPILOT ENGAGED GLOBALLY — ALL RESPONSES ARE AI-AUTOMATED
+        <i class="fa-solid fa-triangle-exclamation ms-2"></i>
+    </div>
+
+    <!-- ── Global Loading Overlay ── -->
+    <div id="nexus-global-loader">
+        <div class="text-center">
+            <div style="width: 48px; height: 48px; border: 3px solid rgba(59,130,246,0.2); border-top-color: hsl(217,91%,60%); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;"></div>
+            <div class="loader-title" id="nexus-loader-text">Processing...</div>
+            <div class="mt-3" style="width: 200px; height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden;">
+                <div id="nexus-loader-progress" style="height: 100%; background: linear-gradient(90deg, hsl(217,91%,60%), hsl(174,90%,41%)); width: 0%; transition: width 0.3s ease; border-radius: 2px;"></div>
+            </div>
+            <div class="mt-2 text-muted" style="font-size: 0.7rem; font-family: 'JetBrains Mono', monospace;" id="nexus-loader-sub">Please wait...</div>
+        </div>
+    </div>
+
+    <div class="d-flex" id="wrapper">
+
+        <!-- ═══════════════════════════════════════════════════
+             SIDEBAR
+        ═══════════════════════════════════════════════════ -->
+        <div id="sidebar-wrapper">
+            <!-- Brand Header -->
+            <div class="sidebar-heading">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-network-wired"></i>
+                </div>
+                <span>Nexus</span>
+                <span class="brand-version">V2</span>
+            </div>
+
+            <!-- Navigation -->
+            <div class="sidebar-nav list-group list-group-flush">
+
+                <div class="nav-section-label">Core</div>
+
+                <a href="http://127.0.0.1:8000/hub/dashboard"
+                   class="list-group-item list-group-item-action active">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>NexusHub</span>
+                </a>
+
+                <div class="nav-section-label mt-2">People & Comms</div>
+
+                <a href="http://127.0.0.1:8000/hub/people-connect"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-solid fa-comments"></i>
+                    <span>People Connect</span>
+                </a>
+
+                <a href="http://127.0.0.1:8000/hub/contacts"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-solid fa-address-book"></i>
+                    <span>ContactsHub</span>
+                </a>
+
+                <a href="http://127.0.0.1:8000/hub/waha"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-brands fa-whatsapp"></i>
+                    <span>Waha Manager</span>
+                </a>
+
+                <div class="nav-section-label mt-2">AI & Intelligence</div>
+
+                <a href="http://127.0.0.1:8000/hub/hedra-soul"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-solid fa-brain"></i>
+                    <span>Hedra Soul</span>
+                </a>
+
+                <a href="http://127.0.0.1:8000/hub/proactive-ai"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-solid fa-bolt"></i>
+                    <span>Proactive AI</span>
+                </a>
+
+                <a href="http://127.0.0.1:8000/hub/agents"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-solid fa-robot"></i>
+                    <span>AgentsHub</span>
+                </a>
+
+                <a href="http://127.0.0.1:8000/hub/memory"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-solid fa-database"></i>
+                    <span>MemoryHub</span>
+                </a>
+
+                <div class="nav-section-label mt-2">Automation</div>
+
+                <a href="http://127.0.0.1:8000/hub/workflows"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-solid fa-diagram-project"></i>
+                    <span>WorkflowsHub</span>
+                </a>
+
+                <a href="http://127.0.0.1:8000/hub/tasks"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>Task Objectives</span>
+                </a>
+
+                <a href="http://127.0.0.1:8000/hub/scheduler"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-regular fa-clock"></i>
+                    <span>Scheduler</span>
+                </a>
+
+                <div class="nav-section-label mt-2">System</div>
+
+                <a href="http://127.0.0.1:8000/hub/logs"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-solid fa-terminal"></i>
+                    <span>LogsHub</span>
+                </a>
+
+                <a href="http://127.0.0.1:8000/hub/models"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-solid fa-microchip"></i>
+                    <span>AIModelsHub</span>
+                </a>
+
+                <a href="http://127.0.0.1:8000/hub/apis"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-solid fa-plug"></i>
+                    <span>APIs & MCP</span>
+                </a>
+
+                <a href="http://127.0.0.1:8000/hub/admin"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-solid fa-server"></i>
+                    <span>Admin</span>
+                </a>
+
+                <a href="http://127.0.0.1:8000/hub/settings"
+                   class="list-group-item list-group-item-action ">
+                    <i class="fa-solid fa-gear"></i>
+                    <span>Settings</span>
+                </a>
+
+            </div>
+
+            <!-- Sidebar Footer -->
+            <div class="sidebar-footer">
+                <span class="agent-status-orb online"></span>
+                <span>Souly Online</span>
+                <span class="ms-auto text-muted" style="font-family: 'JetBrains Mono'; font-size: 0.6rem;">v2.1.0</span>
+            </div>
+        </div>
+        <!-- /#sidebar-wrapper -->
+
+        <!-- ═══════════════════════════════════════════════════
+             PAGE CONTENT
+        ═══════════════════════════════════════════════════ -->
+        <div id="page-content-wrapper" class="w-100 d-flex flex-column">
+
+            <!-- Top Navbar -->
+            <nav class="navbar navbar-expand-lg navbar-dark px-4" id="main-topbar">
+                <button class="btn btn-sm me-3" id="menu-toggle"
+                        style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: var(--text-secondary); border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-bars" style="font-size: 0.85rem;"></i>
+                </button>
+
+                <!-- Breadcrumb / Page Title -->
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted" style="font-size: 0.75rem; font-family: 'JetBrains Mono';">nexus /</span>
+                    <span class="text-light fw-semibold" style="font-size: 0.85rem;">NexusHub</span>
+                </div>
+
+                <div class="ms-auto d-flex align-items-center gap-3">
+                    <!-- Queue Status Pill -->
+                    <div id="queue-status-pill" class="d-none d-md-flex align-items-center gap-2 px-3 py-1 rounded-pill"
+                         style="background: var(--nexus-teal-dim); border: 1px solid hsla(174,90%,41%,0.3); font-size: 0.72rem; font-family: 'JetBrains Mono';">
+                        <span class="agent-status-orb busy" style="width: 6px; height: 6px;"></span>
+                        <span id="queue-status-text" class="text-light">Queue Active</span>
+                    </div>
+
+                    <!-- Notifications -->
+                    <button class="btn btn-sm position-relative" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary);">
+                        <i class="fa-regular fa-bell" style="font-size: 0.85rem;"></i>
+                        <span id="notif-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary" style="font-size: 0.55rem; display: none;">0</span>
+                    </button>
+
+                    <!-- Horizon Link -->
+                    <a href="/horizon" target="_blank" class="btn btn-sm d-none d-md-flex align-items-center gap-2"
+                       style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-secondary); font-size: 0.78rem; padding: 6px 12px; text-decoration: none;">
+                        <i class="fa-solid fa-gauge" style="font-size: 0.75rem;"></i>
+                        <span>Horizon</span>
+                    </a>
+
+                    <!-- User -->
+                    <div class="dropdown">
+                        <button class="btn btn-sm dropdown-toggle d-flex align-items-center gap-2"
+                                style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: var(--text-primary); font-size: 0.82rem; padding: 6px 12px;"
+                                data-bs-toggle="dropdown">
+                            <div style="width: 22px; height: 22px; background: var(--nexus-blue-dim); border: 1px solid var(--nexus-blue-glow); border-radius: 6px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fa-solid fa-user" style="font-size: 0.6rem; color: var(--nexus-blue);"></i>
+                            </div>
+                            Admin
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" style="background: rgba(9,15,25,0.97); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px;">
+                            <li><a class="dropdown-item rounded" href="#" style="color: var(--text-secondary); font-size: 0.83rem; padding: 8px 12px;"><i class="fa-regular fa-user me-2"></i>Profile</a></li>
+                            <li><hr class="dropdown-divider" style="border-color: rgba(255,255,255,0.06);"></li>
+                            <li><a class="dropdown-item rounded text-danger" href="#" style="font-size: 0.83rem; padding: 8px 12px;"><i class="fa-solid fa-right-from-bracket me-2"></i>Logout</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Main Content Area -->
+            <div class="main-content" id="main-content">
+                <div class="d-flex flex-column gap-4 animate-in">
+
+    
+    <div class="d-flex flex-wrap align-items-center gap-2 px-4 py-3 rounded-3" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border);">
+        <span style="font-size: 0.72rem; font-family: 'JetBrains Mono'; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-right: 4px;">System Health</span>
+        <div class="vr" style="background: var(--glass-border); height: 14px; margin: 0 8px;"></div>
+        <span class="health-badge health-ok"><i class="fa-solid fa-database" style="font-size: 0.6rem;"></i> Database: Online</span>
+        <span class="health-badge health-ok"><i class="fa-solid fa-bolt" style="font-size: 0.6rem;"></i> Redis: Optimal</span>
+        <span class="health-badge health-warn" id="hb-ai"><i class="fa-solid fa-microchip" style="font-size: 0.6rem;"></i> AI Models: Active</span>
+        <span class="health-badge health-ok" id="hb-waha"><i class="fa-brands fa-whatsapp" style="font-size: 0.6rem;"></i> WAHA: Connected</span>
+        <span class="health-badge health-ok" id="hb-queue"><i class="fa-solid fa-layer-group" style="font-size: 0.6rem;"></i> Queue: Running</span>
+        <div class="ms-auto d-flex gap-2">
+            <a href="http://127.0.0.1:8000/hub/waha" class="btn btn-sm" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: var(--text-secondary); font-size: 0.75rem; padding: 4px 12px; border-radius: 6px;">
+                <i class="fa-solid fa-rotate-right me-1"></i> Sync WAHA
+            </a>
+            <button class="btn btn-sm btn-primary" id="btn-new-chat" style="font-size: 0.75rem; padding: 4px 12px; border-radius: 6px;">
+                <i class="fa-solid fa-plus me-1"></i> New Session
+            </button>
+        </div>
+    </div>
+
+    
+    <div class="stagger-1" style="opacity: 0;">
+        <div class="d-flex align-items-center gap-3 mb-1">
+            <div style="width: 42px; height: 42px; background: var(--nexus-blue-dim); border: 1px solid var(--nexus-blue-glow); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                <i class="fa-solid fa-chart-line" style="color: var(--nexus-blue); font-size: 1.1rem;"></i>
+            </div>
+            <div>
+                <h1 class="mb-0" style="font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em;">NexusHub
+                    <span style="font-size: 0.65rem; font-family: 'JetBrains Mono'; color: var(--nexus-teal); background: var(--nexus-teal-dim); border: 1px solid hsla(174,90%,41%,0.3); padding: 2px 8px; border-radius: 4px; vertical-align: middle; margin-left: 8px; letter-spacing: 1px; text-transform: uppercase;">Live</span>
+                </h1>
+                <p class="text-muted mb-0" style="font-size: 0.8rem;">Central Intelligence Console & Cognitive Command Center</p>
+            </div>
+        </div>
+    </div>
+
+    
+    <div class="row g-3 stagger-2" style="opacity: 0;">
+        <div class="col-6 col-md-3">
+            <div class="metric-card" style="--accent-color: hsl(217,91%,60%);">
+                <div class="metric-icon" style="background: var(--nexus-blue-dim);">
+                    <i class="fa-solid fa-users" style="color: var(--nexus-blue);"></i>
+                </div>
+                <div class="metric-label">Total Contacts</div>
+                <div class="metric-value" id="metric-contacts">403</div>
+                <div class="mt-2" style="font-size: 0.7rem; color: var(--text-muted);">
+                    <i class="fa-solid fa-arrow-trend-up me-1" style="color: var(--success-bright);"></i>
+                    Relationship network
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card" style="--accent-color: hsl(142,76%,45%);">
+                <div class="metric-icon" style="background: hsla(142,72%,29%,0.15);">
+                    <i class="fa-solid fa-list-check" style="color: var(--success-bright);"></i>
+                </div>
+                <div class="metric-label">Active Tasks</div>
+                <div class="metric-value" id="metric-tasks">0</div>
+                <div class="mt-2" style="font-size: 0.7rem; color: var(--text-muted);">
+                    <i class="fa-solid fa-spinner fa-spin me-1" style="color: var(--nexus-teal);"></i>
+                    Currently executing
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card" style="--accent-color: hsl(258,90%,66%);">
+                <div class="metric-icon" style="background: hsla(258,90%,66%,0.12);">
+                    <i class="fa-solid fa-robot" style="color: var(--nexus-purple);"></i>
+                </div>
+                <div class="metric-label">AI Agents</div>
+                <div class="metric-value" id="metric-agents">17</div>
+                <div class="mt-2" style="font-size: 0.7rem; color: var(--text-muted);">
+                    <span class="agent-status-orb online" style="width: 5px; height: 5px;"></span>
+                    Online & Monitoring
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card" style="--accent-color: hsl(174,90%,41%);">
+                <div class="metric-icon" style="background: var(--nexus-teal-dim);">
+                    <i class="fa-solid fa-brain" style="color: var(--nexus-teal);"></i>
+                </div>
+                <div class="metric-label">Memory Entries</div>
+                <div class="metric-value" id="metric-memory">0</div>
+                <div class="mt-2" style="font-size: 0.7rem; color: var(--text-muted);">
+                    <i class="fa-solid fa-database me-1" style="color: var(--nexus-teal);"></i>
+                    Cognitive knowledge base
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+    <div class="row g-4 stagger-3" style="opacity: 0;">
+
+        
+        <div class="col-12 col-lg-5">
+            <div class="section-panel h-100">
+                <div class="section-panel-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-terminal" style="color: var(--nexus-teal); font-size: 0.85rem;"></i>
+                        <h6>System Telemetry</h6>
+                        <span class="agent-status-orb online" style="width: 6px; height: 6px;"></span>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button id="btn-pause-feed" class="btn btn-sm" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: var(--text-muted); font-size: 0.7rem; padding: 3px 10px; border-radius: 5px;">
+                            <i class="fa-solid fa-pause me-1"></i> Pause
+                        </button>
+                        <button id="btn-clear-feed" class="btn btn-sm" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: var(--text-muted); font-size: 0.7rem; padding: 3px 10px; border-radius: 5px;">
+                            <i class="fa-solid fa-broom me-1"></i> Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="section-panel-body p-0">
+                    <div class="telemetry-feed" id="telemetry-feed">
+                                                <div class="tele-line">
+                            <span class="tele-time">03:08:59</span>
+                            <span class="tele-level-INFO">[INFO]</span>
+                            <span class="tele-msg">Nexus V2 initialized — all systems operational.</span>
+                        </div>
+                        <div class="tele-line">
+                            <span class="tele-time">03:08:56</span>
+                            <span class="tele-level-SUCCESS">[OK]</span>
+                            <span class="tele-msg">Database connection established successfully.</span>
+                        </div>
+                        <div class="tele-line">
+                            <span class="tele-time">03:08:52</span>
+                            <span class="tele-level-INFO">[INFO]</span>
+                            <span class="tele-msg">Queue worker online — monitoring jobs.</span>
+                        </div>
+                        <div class="tele-line">
+                            <span class="tele-time">03:08:47</span>
+                            <span class="tele-level-INFO">[INFO]</span>
+                            <span class="tele-msg">Echo/Reverb WebSocket server connected.</span>
+                        </div>
+                                                <div class="tele-line mt-1">
+                            <span class="tele-time">—</span>
+                            <span class="tele-level-INFO">[SYS]</span>
+                            <span class="tele-msg">Stream active <span class="cursor"></span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        
+        <div class="col-12 col-lg-7">
+            <div class="section-panel h-100 d-flex flex-column">
+                <div class="section-panel-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <div style="width: 28px; height: 28px; background: var(--nexus-blue-dim); border: 1px solid var(--nexus-blue-glow); border-radius: 6px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid fa-robot" style="color: var(--nexus-blue); font-size: 0.75rem;"></i>
+                        </div>
+                        <h6>Central AI Console</h6>
+                        <span style="font-size: 0.6rem; font-family: 'JetBrains Mono'; color: var(--nexus-teal); background: var(--nexus-teal-dim); border: 1px solid hsla(174,90%,41%,0.3); padding: 1px 6px; border-radius: 4px;">GEMINI</span>
+                    </div>
+                    <button id="btn-clear-chat" class="btn btn-sm" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: var(--text-muted); font-size: 0.7rem; padding: 3px 10px; border-radius: 5px;">
+                        <i class="fa-solid fa-trash-can me-1"></i> Clear
+                    </button>
+                </div>
+
+                <div class="ai-chat-area" id="ai-chat-area">
+                    <div class="chat-bubble assistant">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <i class="fa-solid fa-robot" style="font-size: 0.7rem; color: var(--nexus-blue);"></i>
+                            <span style="font-size: 0.65rem; color: var(--text-muted); font-family: 'JetBrains Mono';">Souly · Nexus AI</span>
+                        </div>
+                        Hello. I'm Souly — your Nexus cognitive assistant. I have access to your contacts, tasks, workflows, and system metrics. How can I help you today?
+                    </div>
+                </div>
+
+                <div class="chat-composer p-3 border-top" style="border-color: var(--glass-border) !important;">
+                    <div class="d-flex gap-2 align-items-end">
+                        <textarea id="ai-input" class="form-control composer-input" placeholder="Ask Souly anything... (⌘+Enter to send)" rows="1" style="resize: none; background: rgba(6,11,19,0.8) !important; font-size: 0.83rem;"></textarea>
+                        <button id="btn-send-ai" class="btn btn-primary flex-shrink-0" style="border-radius: 8px; padding: 8px 16px; font-size: 0.82rem;">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div class="d-flex justify-content-between mt-2" style="font-size: 0.68rem; color: var(--text-muted);">
+                        <span><i class="fa-solid fa-circle me-1" style="font-size: 0.4rem; color: var(--nexus-teal);"></i>System context injected</span>
+                        <span id="ai-token-count">0 tokens</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+    <div class="row g-4 stagger-4" style="opacity: 0;">
+
+        
+        <div class="col-12 col-lg-4">
+            <div class="section-panel h-100">
+                <div class="section-panel-header">
+                    <h6><i class="fa-solid fa-users me-2" style="color: var(--nexus-blue); font-size: 0.8rem;"></i>Recent Contacts</h6>
+                    <a href="http://127.0.0.1:8000/hub/contacts" style="font-size: 0.72rem; color: var(--nexus-blue); text-decoration: none;">View all →</a>
+                </div>
+                <div class="section-panel-body p-0">
+                                        <a href="http://127.0.0.1:8000/hub/contacts/404" class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none" style="border-bottom: 1px solid var(--glass-border); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--nexus-blue-dim); border: 1px solid var(--nexus-blue-glow); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-weight: 600; color: var(--nexus-blue); font-size: 0.85rem;">
+                            W
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="fw-medium text-light" style="font-size: 0.83rem;">WAHA Contact 0884</div>
+                            <div class="text-muted truncate" style="font-size: 0.72rem;">No role</div>
+                        </div>
+                        <div>
+                            <span class="reply-mode-badge manual">
+                                manual
+                            </span>
+                        </div>
+                    </a>
+                                        <a href="http://127.0.0.1:8000/hub/contacts/405" class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none" style="border-bottom: 1px solid var(--glass-border); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--nexus-blue-dim); border: 1px solid var(--nexus-blue-glow); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-weight: 600; color: var(--nexus-blue); font-size: 0.85rem;">
+                            W
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="fw-medium text-light" style="font-size: 0.83rem;">WhatsApp</div>
+                            <div class="text-muted truncate" style="font-size: 0.72rem;">No role</div>
+                        </div>
+                        <div>
+                            <span class="reply-mode-badge manual">
+                                manual
+                            </span>
+                        </div>
+                    </a>
+                                        <a href="http://127.0.0.1:8000/hub/contacts/402" class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none" style="border-bottom: 1px solid var(--glass-border); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--nexus-blue-dim); border: 1px solid var(--nexus-blue-glow); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-weight: 600; color: var(--nexus-blue); font-size: 0.85rem;">
+                            W
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="fw-medium text-light" style="font-size: 0.83rem;">WhatsApp</div>
+                            <div class="text-muted truncate" style="font-size: 0.72rem;">No role</div>
+                        </div>
+                        <div>
+                            <span class="reply-mode-badge manual">
+                                manual
+                            </span>
+                        </div>
+                    </a>
+                                        <a href="http://127.0.0.1:8000/hub/contacts/403" class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none" style="border-bottom: 1px solid var(--glass-border); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--nexus-blue-dim); border: 1px solid var(--nexus-blue-glow); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-weight: 600; color: var(--nexus-blue); font-size: 0.85rem;">
+                            W
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="fw-medium text-light" style="font-size: 0.83rem;">WAHA Contact 1111</div>
+                            <div class="text-muted truncate" style="font-size: 0.72rem;">No role</div>
+                        </div>
+                        <div>
+                            <span class="reply-mode-badge manual">
+                                manual
+                            </span>
+                        </div>
+                    </a>
+                                        <a href="http://127.0.0.1:8000/hub/contacts/203" class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none" style="border-bottom: 1px solid var(--glass-border); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--nexus-blue-dim); border: 1px solid var(--nexus-blue-glow); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-weight: 600; color: var(--nexus-blue); font-size: 0.85rem;">
+                            M
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="fw-medium text-light" style="font-size: 0.83rem;">My World</div>
+                            <div class="text-muted truncate" style="font-size: 0.72rem;">No role</div>
+                        </div>
+                        <div>
+                            <span class="reply-mode-badge manual">
+                                manual
+                            </span>
+                        </div>
+                    </a>
+                                        <a href="http://127.0.0.1:8000/hub/contacts/401" class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none" style="border-bottom: 1px solid var(--glass-border); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--nexus-blue-dim); border: 1px solid var(--nexus-blue-glow); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-weight: 600; color: var(--nexus-blue); font-size: 0.85rem;">
+                            O
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="fw-medium text-light" style="font-size: 0.83rem;">Onoo software</div>
+                            <div class="text-muted truncate" style="font-size: 0.72rem;">No role</div>
+                        </div>
+                        <div>
+                            <span class="reply-mode-badge manual">
+                                manual
+                            </span>
+                        </div>
+                    </a>
+                                    </div>
+            </div>
+        </div>
+
+        
+        <div class="col-12 col-lg-4">
+            <div class="section-panel h-100">
+                <div class="section-panel-header">
+                    <h6><i class="fa-solid fa-robot me-2" style="color: var(--nexus-purple); font-size: 0.8rem;"></i>Agent Status</h6>
+                    <a href="http://127.0.0.1:8000/hub/agents" style="font-size: 0.72rem; color: var(--nexus-blue); text-decoration: none;">Manage →</a>
+                </div>
+                <div class="section-panel-body">
+                                        <div class="d-flex align-items-center justify-content-between py-2" style="border-bottom: 1px solid var(--glass-border);">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="agent-status-orb online"></span>
+                            <span style="font-size: 0.83rem; color: var(--text-primary);">System Router</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span style="font-size: 0.68rem; color: var(--text-muted); font-family: 'JetBrains Mono';">gemini</span>
+                            <span class="nx-tag">active</span>
+                        </div>
+                    </div>
+                                        <div class="d-flex align-items-center justify-content-between py-2" style="border-bottom: 1px solid var(--glass-border);">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="agent-status-orb online"></span>
+                            <span style="font-size: 0.83rem; color: var(--text-primary);">Error Handler</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span style="font-size: 0.68rem; color: var(--text-muted); font-family: 'JetBrains Mono';">gemini</span>
+                            <span class="nx-tag">active</span>
+                        </div>
+                    </div>
+                                        <div class="d-flex align-items-center justify-content-between py-2" style="border-bottom: 1px solid var(--glass-border);">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="agent-status-orb online"></span>
+                            <span style="font-size: 0.83rem; color: var(--text-primary);">Event Coordinator</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span style="font-size: 0.68rem; color: var(--text-muted); font-family: 'JetBrains Mono';">gemini</span>
+                            <span class="nx-tag">active</span>
+                        </div>
+                    </div>
+                                        <div class="d-flex align-items-center justify-content-between py-2" style="border-bottom: 1px solid var(--glass-border);">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="agent-status-orb online"></span>
+                            <span style="font-size: 0.83rem; color: var(--text-primary);">Performance Monitor</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span style="font-size: 0.68rem; color: var(--text-muted); font-family: 'JetBrains Mono';">gemini</span>
+                            <span class="nx-tag">active</span>
+                        </div>
+                    </div>
+                                        <div class="d-flex align-items-center justify-content-between py-2" style="border-bottom: 1px solid var(--glass-border);">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="agent-status-orb online"></span>
+                            <span style="font-size: 0.83rem; color: var(--text-primary);">Data Validator</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span style="font-size: 0.68rem; color: var(--text-muted); font-family: 'JetBrains Mono';">gemini</span>
+                            <span class="nx-tag">active</span>
+                        </div>
+                    </div>
+                                        <div class="d-flex align-items-center justify-content-between py-2" style="border-bottom: 1px solid var(--glass-border);">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="agent-status-orb online"></span>
+                            <span style="font-size: 0.83rem; color: var(--text-primary);">Ortiz-Deckow Agent</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span style="font-size: 0.68rem; color: var(--text-muted); font-family: 'JetBrains Mono';">gemini</span>
+                            <span class="nx-tag">active</span>
+                        </div>
+                    </div>
+                                    </div>
+            </div>
+        </div>
+
+        
+        <div class="col-12 col-lg-4">
+            <div class="section-panel h-100">
+                <div class="section-panel-header">
+                    <h6><i class="fa-solid fa-bolt me-2" style="color: var(--amber); font-size: 0.8rem;"></i>Upcoming Schedules</h6>
+                    <a href="http://127.0.0.1:8000/hub/scheduler" style="font-size: 0.72rem; color: var(--nexus-blue); text-decoration: none;">View all →</a>
+                </div>
+                <div class="section-panel-body">
+                                        <div class="d-flex align-items-center gap-3 py-2" style="border-bottom: 1px solid var(--glass-border);">
+                        <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--amber-dim); border: 1px solid hsla(38,92%,50%,0.25); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fa-regular fa-clock" style="color: var(--amber); font-size: 0.75rem;"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div style="font-size: 0.82rem; color: var(--text-primary);">Schedule</div>
+                            <div style="font-size: 0.68rem; color: var(--text-muted); font-family: 'JetBrains Mono';">0 2 * * * · 1 day ago</div>
+                        </div>
+                        <span class="nx-tag text-success">active</span>
+                    </div>
+                                    </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+            </div>
+        </div>
+        <!-- /#page-content-wrapper -->
+    </div>
+    <!-- /#wrapper -->
+
+    <!-- ═══════════════════════════════════════════════════
+         STATUS BAR (Fixed Bottom)
+    ═══════════════════════════════════════════════════ -->
+    <div id="nexus-statusbar">
+        <!-- Left Section: Connections -->
+        <div class="statusbar-section">
+            <div class="statusbar-item">
+                <span class="agent-status-orb online" style="width: 6px; height: 6px;"></span>
+                <span id="sb-agent-status">Souly</span>
+            </div>
+            <div class="statusbar-item">
+                <i class="fa-brands fa-whatsapp" style="color: hsl(142,76%,55%); font-size: 0.8rem;"></i>
+                <span id="sb-waha-status">WAHA</span>
+            </div>
+            <div class="statusbar-item d-none d-md-flex">
+                <i class="fa-solid fa-diagram-project" style="color: var(--nexus-blue); font-size: 0.75rem;"></i>
+                <span id="sb-queue-count">0 Jobs</span>
+            </div>
+        </div>
+
+        <!-- Center: Dynamic Task Status -->
+        <div class="statusbar-center" id="statusbar-task-status">
+            <i class="fa-solid fa-circle-check me-1" style="color: var(--nexus-teal); font-size: 0.65rem;"></i>
+            Idle — System Ready
+        </div>
+
+        <!-- Right Section: System Metrics -->
+        <div class="statusbar-section">
+            <div class="statusbar-item d-none d-md-flex">
+                <i class="fa-solid fa-memory" style="color: var(--nexus-blue); font-size: 0.75rem;"></i>
+                <span id="sb-memory">— MB</span>
+            </div>
+            <div class="statusbar-item d-none d-md-flex">
+                <i class="fa-solid fa-microchip" style="color: var(--nexus-teal); font-size: 0.75rem;"></i>
+                <span id="sb-cpu">— %</span>
+            </div>
+            <div class="statusbar-item">
+                <i class="fa-regular fa-clock" style="font-size: 0.75rem;"></i>
+                <span id="sb-time">03:08</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         SCRIPTS
+    ═══════════════════════════════════════════════════ -->
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <!-- Bootstrap 5 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- DataTables -->
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <!-- NProgress -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Pusher & Laravel Echo -->
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/laravel-echo@1.16.1/dist/echo.iife.js"></script>
+
+    <script>
+        // ── Laravel Echo / Reverb ──
+        window.Pusher = Pusher;
+        window.Echo = new Echo({
+            broadcaster: 'reverb',
+            key: 'viys1sd5rywyu1rjbggz',
+            wsHost: '127.0.0.1',
+            wsPort: parseInt('8080'),
+            wssPort: parseInt('8080'),
+            forceTLS: false,
+            enabledTransports: ['ws', 'wss'],
+        });
+
+        // ── NProgress for page/AJAX ──
+        NProgress.configure({ showSpinner: false, minimum: 0.1 });
+        $(document).ajaxStart(() => NProgress.start());
+        $(document).ajaxStop(() => NProgress.done());
+        window.addEventListener('load', () => NProgress.done());
+        document.addEventListener('DOMContentLoaded', () => NProgress.start());
+
+        // ── Sidebar Toggle ──
+        $('#menu-toggle').on('click', function() {
+            $('body').toggleClass('toggled');
+        });
+
+        // ── Active Sidebar Link Highlight ──
+        (function() {
+            const currentPath = window.location.pathname;
+            $('#sidebar-wrapper .list-group-item').each(function() {
+                const href = $(this).attr('href');
+                if (href && currentPath.startsWith(href) && href !== '/') {
+                    $(this).addClass('active');
+                }
+            });
+        })();
+
+        // ── Statusbar Clock ──
+        function updateClock() {
+            const now = new Date();
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            $('#sb-time').text(`${h}:${m}`);
+        }
+        setInterval(updateClock, 10000);
+
+        // ── Global Nexus Object ──
+        window.Nexus = {
+            showTaskLoader: function(message, sub) {
+                $('#nexus-loader-text').text(message || 'Processing...');
+                $('#nexus-loader-sub').text(sub || 'Please wait...');
+                $('#nexus-loader-progress').css('width', '0%');
+                $('#nexus-global-loader').css('display', 'flex');
+            },
+            updateTaskLoader: function(percent, sub) {
+                $('#nexus-loader-progress').css('width', percent + '%');
+                if (sub) $('#nexus-loader-sub').text(sub);
+            },
+            hideTaskLoader: function() {
+                $('#nexus-global-loader').css('display', 'none');
+            },
+            updateStatusBar: function(status, type) {
+                const icons = {
+                    running:  '<i class="fa-solid fa-spinner fa-spin me-1" style="color: var(--nexus-teal);"></i>',
+                    success:  '<i class="fa-solid fa-circle-check me-1" style="color: hsl(142,76%,55%);"></i>',
+                    error:    '<i class="fa-solid fa-circle-xmark me-1" style="color: var(--error);"></i>',
+                    warning:  '<i class="fa-solid fa-triangle-exclamation me-1" style="color: var(--amber);"></i>',
+                    idle:     '<i class="fa-solid fa-circle-check me-1" style="color: var(--nexus-teal); font-size: 0.65rem;"></i>',
+                };
+                const icon = icons[type] || icons.running;
+                $('#statusbar-task-status').html(icon + status);
+                if (type === 'running') {
+                    $('#statusbar-task-status').addClass('active');
+                } else {
+                    $('#statusbar-task-status').removeClass('active');
+                }
+            },
+            clearStatusBar: function() {
+                this.updateStatusBar('Idle — System Ready', 'idle');
+            },
+            setAutopilot: function(enabled) {
+                if (enabled) {
+                    $('#autopilot-banner').addClass('visible');
+                } else {
+                    $('#autopilot-banner').removeClass('visible');
+                }
+            },
+            notify: function(message, type) {
+                // Simple toast notification
+                const colors = {
+                    success: 'var(--success-bright)',
+                    error:   'var(--error)',
+                    warning: 'var(--amber)',
+                    info:    'var(--nexus-blue)',
+                };
+                const color = colors[type] || colors.info;
+                const toast = $(`
+                    <div style="position:fixed;top:80px;right:20px;z-index:9000;
+                         background:rgba(9,15,25,0.97);border:1px solid ${color}30;
+                         border-left:3px solid ${color};border-radius:10px;
+                         padding:12px 16px;max-width:300px;font-size:0.82rem;
+                         color:var(--text-primary);backdrop-filter:blur(12px);
+                         animation:fadeInSlideUp 0.3s var(--ease-spring) forwards;
+                         box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+                        ${message}
+                    </div>
+                `);
+                $('body').append(toast);
+                setTimeout(() => toast.fadeOut(300, function() { $(this).remove(); }), 4000);
+            }
+        };
+
+        // ── Real-time: Listen for Job Progress events ──
+        window.Echo.channel('nexus-system')
+            .listen('JobProgressUpdated', (e) => {
+                if (e.status === 'running') {
+                    Nexus.updateStatusBar(`${e.job_name || 'Job'}: ${e.message || 'Running...'}`, 'running');
+                    $('#queue-status-pill').removeClass('d-none');
+                    $('#queue-status-text').text(e.job_name || 'Queue Active');
+                } else if (e.status === 'completed') {
+                    Nexus.updateStatusBar(`${e.job_name || 'Job'} completed`, 'success');
+                    setTimeout(() => { Nexus.clearStatusBar(); $('#queue-status-pill').addClass('d-none'); }, 3000);
+                } else if (e.status === 'failed') {
+                    Nexus.updateStatusBar(`${e.job_name || 'Job'} failed`, 'error');
+                    setTimeout(() => { Nexus.clearStatusBar(); $('#queue-status-pill').addClass('d-none'); }, 5000);
+                }
+            });
+
+    </script>
+
+    <script>
+$(document).ready(function() {
+    // ─── Telemetry Feed ───
+    let feedPaused = false;
+    const $feed = $('#telemetry-feed');
+
+    function scrollFeedToBottom() {
+        if (!feedPaused) $feed.scrollTop($feed[0].scrollHeight);
+    }
+    scrollFeedToBottom();
+
+    $('#btn-pause-feed').on('click', function() {
+        feedPaused = !feedPaused;
+        const $btn = $(this);
+        if (feedPaused) {
+            $btn.html('<i class="fa-solid fa-play me-1"></i> Resume');
+        } else {
+            $btn.html('<i class="fa-solid fa-pause me-1"></i> Pause');
+            scrollFeedToBottom();
+        }
+    });
+
+    $('#btn-clear-feed').on('click', function() {
+        $feed.html('<div class="tele-line"><span class="tele-time">' + new Date().toTimeString().slice(0,8) + '</span><span class="tele-level-INFO">[SYS]</span><span class="tele-msg">Feed cleared. <span class="cursor"></span></span></div>');
+    });
+
+    // Listen for log events via Echo
+    window.Echo.channel('nexus-system')
+        .listen('NewActivityLog', (e) => {
+            if (feedPaused) return;
+            const time = new Date().toTimeString().slice(0,8);
+            const level = (e.level || 'INFO').toUpperCase();
+            const levelClass = { INFO: 'tele-level-INFO', SUCCESS: 'tele-level-SUCCESS', WARNING: 'tele-level-WARN', ERROR: 'tele-level-ERROR' }[level] || 'tele-level-INFO';
+            const line = `<div class="tele-line animate-in"><span class="tele-time">${time}</span><span class="${levelClass}">[${level}]</span><span class="tele-msg">${e.message}</span></div>`;
+            $feed.find('.tele-line:last').before(line);
+            // Remove cursor and re-add
+            $feed.find('.cursor').remove();
+            $feed.append('<div class="tele-line"><span class="tele-time">—</span><span class="tele-level-INFO">[SYS]</span><span class="tele-msg">Stream active <span class="cursor"></span></span></div>');
+            scrollFeedToBottom();
+        });
+
+    // Simulate live telemetry if in dev
+    const fakeLogs = [
+        { level: 'INFO', msg: 'Memory consolidation cycle completed.' },
+        { level: 'SUCCESS', msg: 'Agent heartbeat confirmed — Souly online.' },
+        { level: 'INFO', msg: 'WAHA: 0 pending messages in queue.' },
+        { level: 'INFO', msg: 'Redis cache hit ratio: 94.2%' },
+        { level: 'WARN', msg: 'Proactive AI trigger pending evaluation.' },
+    ];
+    let logIdx = 0;
+    setInterval(() => {
+        if (feedPaused) return;
+        const entry = fakeLogs[logIdx % fakeLogs.length];
+        const time = new Date().toTimeString().slice(0,8);
+        const levelClass = { INFO: 'tele-level-INFO', SUCCESS: 'tele-level-SUCCESS', WARN: 'tele-level-WARN', ERROR: 'tele-level-ERROR' }[entry.level] || 'tele-level-INFO';
+        const newLine = `<div class="tele-line" style="animation: fadeInSlideUp 0.3s ease"><span class="tele-time">${time}</span><span class="${levelClass}">[${entry.level}]</span><span class="tele-msg">${entry.msg}</span></div>`;
+        $feed.find('.tele-line:last').before(newLine);
+        scrollFeedToBottom();
+        logIdx++;
+        // Trim old lines
+        const lines = $feed.find('.tele-line');
+        if (lines.length > 50) lines.first().remove();
+    }, 4000);
+
+    // ─── AI Chat ───
+    const $chatArea = $('#ai-chat-area');
+    const $input = $('#ai-input');
+    let tokenCount = 0;
+
+    function scrollChat() {
+        $chatArea.scrollTop($chatArea[0].scrollHeight);
+    }
+
+    function addMessage(text, role) {
+        const ts = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+        const icon = role === 'user' ? 'fa-user' : 'fa-robot';
+        const label = role === 'user' ? 'You' : 'Souly · Nexus AI';
+        const color = role === 'user' ? 'var(--nexus-blue)' : 'hsl(217,91%,60%)';
+        const bubble = $(`
+            <div class="chat-bubble ${role}" style="animation: fadeInSlideUp 0.3s ease">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <i class="fa-solid ${icon}" style="font-size: 0.7rem; color: ${color};"></i>
+                    <span style="font-size: 0.65rem; color: var(--text-muted); font-family: 'JetBrains Mono';">${label} · ${ts}</span>
+                </div>
+                ${text}
+            </div>
+        `);
+        $chatArea.append(bubble);
+        scrollChat();
+        tokenCount += Math.ceil(text.length / 4);
+        $('#ai-token-count').text(tokenCount + ' tokens');
+    }
+
+    function addThinking() {
+        const thinking = $('<div class="chat-bubble thinking" id="thinking-bubble"><i class="fa-solid fa-circle-notch fa-spin me-2"></i>Souly is thinking...</div>');
+        $chatArea.append(thinking);
+        scrollChat();
+        return thinking;
+    }
+
+    async function sendMessage() {
+        const text = $input.val().trim();
+        if (!text) return;
+        $input.val('');
+        addMessage(text, 'user');
+        const $thinking = addThinking();
+
+        try {
+            const res = await $.ajax({
+                url: 'http://127.0.0.1:8000/hub/hedra-soul/message',
+                method: 'POST',
+                data: JSON.stringify({ message: text, context: 'dashboard' }),
+                contentType: 'application/json',
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') }
+            });
+            $thinking.remove();
+            addMessage(res.reply || res.message || 'Response received.', 'assistant');
+        } catch(e) {
+            $thinking.remove();
+            addMessage('I encountered an issue processing your request. Please check the system logs.', 'assistant');
+        }
+    }
+
+    $('#btn-send-ai').on('click', sendMessage);
+    $input.on('keydown', function(e) {
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendMessage();
+        // Auto-resize
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    $('#btn-clear-chat').on('click', function() {
+        $chatArea.empty();
+        addMessage('Chat cleared. How can I assist you?', 'assistant');
+        tokenCount = 0;
+        $('#ai-token-count').text('0 tokens');
+    });
+
+    // ─── Metrics real-time update via Echo ───
+    window.Echo.channel('nexus-system')
+        .listen('MetricsUpdated', (e) => {
+            if (e.total_contacts !== undefined) {
+                $('#metric-contacts').text(Number(e.total_contacts).toLocaleString());
+            }
+            if (e.active_tasks !== undefined) {
+                $('#metric-tasks').text(Number(e.active_tasks).toLocaleString());
+            }
+        });
+});
+</script>
+
+    <!-- Custom JS -->
+        <script src="http://127.0.0.1:8000/js/app.js"></script>
+    
+<!-- Laravel Debugbar Widget -->
+<link rel="stylesheet" type="text/css" href="http://127.0.0.1:8000/_debugbar/assets?type=css&mtime=1780523640">
+<script type="text/javascript" src="http://127.0.0.1:8000/_debugbar/assets?type=js&mtime=1780523640"></script>
+<script type="text/javascript">
+(function () {
+    const renderDebugbar = function () {
+const phpdebugbar = new PhpDebugBar.DebugBar({"theme":"auto","hideEmptyTabs":true,"spaNavigationEvents":["livewire:navigated","turbo:load","htmx:afterSettle"]});
+phpdebugbar.addTab("request", new PhpDebugBar.DebugBar.Tab({"icon":"arrows-left-right","title":"Request", "widget": new PhpDebugBar.Widgets.JsonVariableListWidget()}));
+phpdebugbar.addTab("exceptions", new PhpDebugBar.DebugBar.Tab({"icon":"bug","title":"Exceptions", "widget": new PhpDebugBar.Widgets.ExceptionsWidget()}));
+phpdebugbar.addTab("messages", new PhpDebugBar.DebugBar.Tab({"icon":"logs","title":"Messages", "widget": new PhpDebugBar.Widgets.MessagesWidget()}));
+phpdebugbar.addIndicator("time", new PhpDebugBar.DebugBar.Indicator({"icon":"clock","tooltip":"Request Duration","link":"timeline"}), "right");
+phpdebugbar.addTab("timeline", new PhpDebugBar.DebugBar.Tab({"icon":"chart-infographic","title":"Timeline", "widget": new PhpDebugBar.Widgets.TimelineWidget()}));
+phpdebugbar.addIndicator("memory", new PhpDebugBar.DebugBar.Indicator({"icon":"server-cog","tooltip":"Memory Usage"}), "right");
+phpdebugbar.addIndicator("version", new PhpDebugBar.DebugBar.Indicator({"icon":"brand-laravel"}), "right");
+phpdebugbar.addTab("views", new PhpDebugBar.DebugBar.Tab({"icon":"file-code","title":"Views", "widget": new PhpDebugBar.Widgets.TemplatesWidget()}));
+phpdebugbar.addTab("queries", new PhpDebugBar.DebugBar.Tab({"icon":"database","title":"Queries", "widget": new PhpDebugBar.Widgets.LaravelQueriesWidget()}));
+phpdebugbar.addTab("models", new PhpDebugBar.DebugBar.Tab({"icon":"box","title":"Models", "widget": new PhpDebugBar.Widgets.TableVariableListWidget()}));
+phpdebugbar.addTab("emails", new PhpDebugBar.DebugBar.Tab({"icon":"inbox","title":"Mails", "widget": new PhpDebugBar.Widgets.MailsWidget()}));
+phpdebugbar.addTab("gate", new PhpDebugBar.DebugBar.Tab({"icon":"logs","title":"Gate", "widget": new PhpDebugBar.Widgets.MessagesWidget()}));
+phpdebugbar.addTab("cache", new PhpDebugBar.DebugBar.Tab({"icon":"clipboard-text","title":"Cache", "widget": new PhpDebugBar.Widgets.LaravelCacheWidget()}));
+phpdebugbar.addTab("jobs", new PhpDebugBar.DebugBar.Tab({"icon":"briefcase","title":"Jobs", "widget": new PhpDebugBar.Widgets.TableVariableListWidget()}));
+phpdebugbar.addTab("http_client", new PhpDebugBar.DebugBar.Tab({"icon":"mobiledata","title":"Http client", "widget": new PhpDebugBar.Widgets.HttpWidget()}));
+phpdebugbar.setDataMap({
+"request": ["request.data", {}],
+"request:badge": ["request.badge", null],
+"exceptions": ["exceptions.exceptions", []],
+"exceptions:badge": ["exceptions.count", null],
+"messages": ["messages.messages", []],
+"messages:badge": ["messages.count", null],
+"time": ["time.duration_str", '0ms'],
+"timeline": ["time", {}],
+"memory": ["memory.peak_usage_str", '0B'],
+"version": ["laravel.version", ],
+"version:tooltip": ["laravel.tooltip", {}],
+"views": ["views", []],
+"views:badge": ["views.nb_templates", 0],
+"queries": ["queries", []],
+"queries:badge": ["queries.nb_statements", 0],
+"models": ["models", {}],
+"models:badge": ["models.count", 0],
+"emails": ["symfonymailer_mails.mails", []],
+"emails:badge": ["symfonymailer_mails.count", null],
+"gate": ["gate.messages", []],
+"gate:badge": ["gate.count", null],
+"cache": ["cache", {}],
+"cache:badge": ["cache.nb_measures", null],
+"jobs": ["jobs", {}],
+"jobs:badge": ["jobs.count", 0],
+"http_client": ["http_client.requests", []],
+"http_client:badge": ["http_client.nb_requests", 0]
+});
+phpdebugbar.restoreState();
+phpdebugbar.enableAjaxHandlerTab();
+phpdebugbar.ajaxHandler = new PhpDebugBar.AjaxHandler(phpdebugbar, undefined, true);
+phpdebugbar.ajaxHandler.bindToFetch();
+phpdebugbar.ajaxHandler.bindToXHR();
+phpdebugbar.setOpenHandler(new PhpDebugBar.OpenHandler({"url":"http:\/\/127.0.0.1:8000\/_debugbar\/open"}));
+phpdebugbar.addDataSet({"__meta":{"id":"01KVS77Q1ZBW6777MKA4HB7D8S","datetime":"2026-06-23 03:08:59","utime":1782184139.839496,"method":"GET","uri":"\/hub\/dashboard","ip":"127.0.0.1"},"request":{"data":{"uri":"GET hub\/dashboard","middleware":["web"],"controller":{"value":"App\\Http\\Controllers\\Web\\HubController@dashboard","xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FHttp%2FControllers%2FWeb%2FHubController.php\u0026line=16","ajax":false,"filename":"HubController.php","line":"16","path":"\\app\\Http\\Controllers\\Web\\HubController.php"}},"prefix":"\/hub","file":{"value":"app\/Http\/Controllers\/Web\/HubController.php:16-59","xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FHttp%2FControllers%2FWeb%2FHubController.php\u0026line=16","ajax":false,"filename":"HubController.php","line":"16","path":"\\app\\Http\\Controllers\\Web\\HubController.php"}},"telescope":"\u003Ca href=\u0022http:\/\/127.0.0.1:8000\/_debugbar\/telescope\/a216b542-0974-4fab-a9f5-0f8b01a75c52\u0022 target=\u0022_blank\u0022 class=\u0022phpdebugbar-widgets-external-link\u0022\u003EView in Telescope\u003C\/a\u003E","method":"GET","format":"html","content_type":"text\/html; charset=utf-8","status_text":"OK","status_code":200,"request_query":[],"request_request":[],"request_files":[],"request_headers":{"user-agent":["Mozilla\/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell\/5.1.26100.8655"],"host":["127.0.0.1:8000"],"connection":["Keep-Alive"]},"request_server":{"DOCUMENT_ROOT":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\public","REMOTE_ADDR":"127.0.0.1","REMOTE_PORT":"49282","SERVER_SOFTWARE":"PHP\/8.4.22 (Development Server)","SERVER_PROTOCOL":"HTTP\/1.1","SERVER_NAME":"127.0.0.1","SERVER_PORT":"8000","REQUEST_URI":"\/hub\/dashboard","REQUEST_METHOD":"GET","SCRIPT_NAME":"\/index.php","SCRIPT_FILENAME":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\public\\index.php","PATH_INFO":"\/hub\/dashboard","PHP_SELF":"\/index.php\/hub\/dashboard","HTTP_USER_AGENT":"Mozilla\/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell\/5.1.26100.8655","HTTP_HOST":"127.0.0.1:8000","HTTP_CONNECTION":"Keep-Alive","REQUEST_TIME_FLOAT":1782184139.032782,"REQUEST_TIME":1782184139},"request_cookies":[],"request_attributes":[],"route":"","response_headers":{"content-type":["text\/html; charset=utf-8"],"cache-control":["no-cache, private"],"date":["Tue, 23 Jun 2026 03:08:59 GMT"],"x-clockwork-id":["1782184139-2527-409956140"],"x-clockwork-version":["5.3.5"],"server-timing":["app; dur=799.67904090881; desc=\u0022Application\u0022, db; dur=37.56; desc=\u0022Database\u0022, timeline-event-0; dur=326.84898376465; desc=\u0022Controller\u0022"],"set-cookie":["XSRF-TOKEN=eyJpdiI6IldUZVh1d2pyVUZPY1ZOeWRmc25oRWc9PSIsInZhbHVlIjoiSTRna0RmQjZ6TlpZUEcreHE1RDJnWUhOZi8ySnY2RlVCa1pFN2krbGk4SFZNMW5za1lNakg2YlVyQ1JxYklwdDhvbURqczZyZlcvTGthT2ZubWtla2RIa1doSzNaVHg0bnlhc1ZiOFJsRlZoL2d0Y0JBTGlwZEtENDliODlUaUUiLCJtYWMiOiJkZDJjZGExNTQ3ZmE1MThkM2E5MDBjZWI1MmIxMzc4ZGU0ZmE3Y2FhMjRlODQxZTYyYmI1YTJmMjIyNGY2Mjg3IiwidGFnIjoiIn0%3D; expires=Tue, 23 Jun 2026 05:08:59 GMT; Max-Age=7200; path=\/; samesite=lax","nexus_session=eyJpdiI6IjI2Uko4Z05OSS9HMmZuV29FS3I2Y1E9PSIsInZhbHVlIjoiR2owTFhodzhuUHVVT3JKMUFiQURSMDlkRDg2TGQ3OFhXekl4bjduZjBNY3JnZEZrWnBnQiswZm5RV1lEU2E1cDJjSW0vd0RSYzMzVEkrNDJqSXh5M2dIRmxRL1JTS2tmZGlOdG92VStzZm1XTWw3UmRZUldYRlRKSGFxcm1JSHUiLCJtYWMiOiI4ODgyNzY0Njc1N2Y1NzdiNzE3NGY2ZTI0OTJlZGNiMTM5YWJhZjc3ZTdlOTJiMzRlNmVhN2U0OTU5N2MzMGQ4IiwidGFnIjoiIn0%3D; expires=Tue, 23 Jun 2026 05:08:59 GMT; Max-Age=7200; path=\/; httponly; samesite=lax","x-clockwork=%7B%22requestId%22%3A%221782184139-2527-409956140%22%2C%22version%22%3A%225.3.5%22%2C%22path%22%3A%22%5C%2F__clockwork%5C%2F%22%2C%22webPath%22%3A%22%5C%2Fclockwork%5C%2Fapp%22%2C%22token%22%3A%229868e082%22%2C%22metrics%22%3Atrue%2C%22toolbar%22%3Atrue%7D; expires=Tue, 23 Jun 2026 03:09:59 GMT; Max-Age=60; path=\/; samesite=lax"]},"response_cookies":["XSRF-TOKEN=eyJpdiI6IldUZVh1d2pyVUZPY1ZOeWRmc25oRWc9PSIsInZhbHVlIjoiSTRna0RmQjZ6TlpZUEcreHE1RDJnWUhOZi8ySnY2RlVCa1pFN2krbGk4SFZNMW5za1lNakg2YlVyQ1JxYklwdDhvbURqczZyZlcvTGthT2ZubWtla2RIa1doSzNaVHg0bnlhc1ZiOFJsRlZoL2d0Y0JBTGlwZEtENDliODlUaUUiLCJtYWMiOiJkZDJjZGExNTQ3ZmE1MThkM2E5MDBjZWI1MmIxMzc4ZGU0ZmE3Y2FhMjRlODQxZTYyYmI1YTJmMjIyNGY2Mjg3IiwidGFnIjoiIn0%3D; expires=Tue, 23-Jun-2026 05:08:59 GMT; path=\/","nexus_session=eyJpdiI6IjI2Uko4Z05OSS9HMmZuV29FS3I2Y1E9PSIsInZhbHVlIjoiR2owTFhodzhuUHVVT3JKMUFiQURSMDlkRDg2TGQ3OFhXekl4bjduZjBNY3JnZEZrWnBnQiswZm5RV1lEU2E1cDJjSW0vd0RSYzMzVEkrNDJqSXh5M2dIRmxRL1JTS2tmZGlOdG92VStzZm1XTWw3UmRZUldYRlRKSGFxcm1JSHUiLCJtYWMiOiI4ODgyNzY0Njc1N2Y1NzdiNzE3NGY2ZTI0OTJlZGNiMTM5YWJhZjc3ZTdlOTJiMzRlNmVhN2U0OTU5N2MzMGQ4IiwidGFnIjoiIn0%3D; expires=Tue, 23-Jun-2026 05:08:59 GMT; path=\/; httponly","x-clockwork=%7B%22requestId%22%3A%221782184139-2527-409956140%22%2C%22version%22%3A%225.3.5%22%2C%22path%22%3A%22%5C%2F__clockwork%5C%2F%22%2C%22webPath%22%3A%22%5C%2Fclockwork%5C%2Fapp%22%2C%22token%22%3A%229868e082%22%2C%22metrics%22%3Atrue%2C%22toolbar%22%3Atrue%7D; expires=Tue, 23-Jun-2026 03:09:59 GMT; path=\/"],"session_metadata":[],"session_attributes":{"_token":"Es***kC","_previous":{"url":"http:\/\/127.0.0.1:8000\/hub\/dashboard"},"_flash":{"old":[],"new":[]}},"flashes":[],"path_info":"\/hub\/dashboard","locale":"en"},"tooltip":{"status":"200 OK","full_url":"http:\/\/127.0.0.1:8000\/hub\/dashboard","action_name":"hub.dashboard","controller_action":"App\\Http\\Controllers\\Web\\HubController@dashboard"},"badge":null},"exceptions":{"count":0,"exceptions":[]},"messages":{"count":1,"messages":[{"message":"[03:08:59] LOG.warning: App\\Models\\AgentTask::fail(): Implicitly marking parameter $error as nullable is deprecated, the explicit nullable type must be used instead in C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Models\\AgentTask.php on line 120","message_html":null,"message_json":null,"is_string":true,"context":null,"context_json":null,"label":"warning","time":1782184139.420424,"xdebug_link":null,"collector":"log"}]},"memory":{"peak_usage":31600976,"peak_usage_str":"30MB"},"laravel":{"version":"11.x","tooltip":{"Laravel Version":"11.54.0","PHP Version":"8.4.22","Environment":"local","Debug Mode":"Enabled","URL":"127.0.0.1:8000\/","Timezone":"UTC","Locale":"en"}},"views":{"count":2,"nb_templates":2,"templates":[{"name":"hubs.dashboard","param_count":null,"params":[],"start":1782184139.776701,"type":"blade","hash":"bladeC:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\resources\\views\/hubs\/dashboard.blade.phphubs.dashboard","xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fresources%2Fviews%2Fhubs%2Fdashboard.blade.php\u0026line=1","ajax":false,"filename":"dashboard.blade.php","line":"?","path":"\\resources\\views\\hubs\\dashboard.blade.php"}},{"name":"layouts.app","param_count":null,"params":[],"start":1782184139.813218,"type":"blade","hash":"bladeC:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\resources\\views\/layouts\/app.blade.phplayouts.app","xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fresources%2Fviews%2Flayouts%2Fapp.blade.php\u0026line=1","ajax":false,"filename":"app.blade.php","line":"?","path":"\\resources\\views\\layouts\\app.blade.php"}}]},"queries":{"count":16,"nb_statements":15,"nb_visible_statements":16,"nb_excluded_statements":0,"nb_failed_statements":0,"accumulated_duration":0.037559999999999996,"accumulated_duration_str":"37.56ms","memory_usage":0,"memory_usage_str":null,"statements":[{"sql":"Connection Established","type":"transaction","params":[],"backtrace":[{"index":15,"namespace":null,"name":"app\/Http\/Middleware\/AutoLoginDevMiddleware.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Middleware\\AutoLoginDevMiddleware.php","line":19},{"index":16,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Pipeline\/Pipeline.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php","line":209},{"index":17,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Foundation\/Http\/Middleware\/TransformsRequest.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Http\\Middleware\\TransformsRequest.php","line":21},{"index":18,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Foundation\/Http\/Middleware\/ConvertEmptyStringsToNull.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Http\\Middleware\\ConvertEmptyStringsToNull.php","line":31},{"index":19,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Pipeline\/Pipeline.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php","line":209}],"start":1782184139.530044,"slow":false,"filename":"AutoLoginDevMiddleware.php:19","source":{"index":15,"namespace":null,"name":"app\/Http\/Middleware\/AutoLoginDevMiddleware.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Middleware\\AutoLoginDevMiddleware.php","line":19},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FHttp%2FMiddleware%2FAutoLoginDevMiddleware.php\u0026line=19","ajax":false,"filename":"AutoLoginDevMiddleware.php","line":"19","path":"\\app\\Http\\Middleware\\AutoLoginDevMiddleware.php"},"connection":"nex_db"},{"sql":"select * from `users` limit 1","type":"query","params":[],"backtrace":[{"index":19,"namespace":null,"name":"app\/Http\/Middleware\/AutoLoginDevMiddleware.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Middleware\\AutoLoginDevMiddleware.php","line":19},{"index":20,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Pipeline\/Pipeline.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php","line":209},{"index":21,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Foundation\/Http\/Middleware\/TransformsRequest.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Http\\Middleware\\TransformsRequest.php","line":21},{"index":22,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Foundation\/Http\/Middleware\/ConvertEmptyStringsToNull.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Http\\Middleware\\ConvertEmptyStringsToNull.php","line":31},{"index":23,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Pipeline\/Pipeline.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php","line":209}],"start":1782184139.5393128,"duration":0.0046,"duration_str":"4.6ms","slow":false,"filename":"AutoLoginDevMiddleware.php:19","source":{"index":19,"namespace":null,"name":"app\/Http\/Middleware\/AutoLoginDevMiddleware.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Middleware\\AutoLoginDevMiddleware.php","line":19},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FHttp%2FMiddleware%2FAutoLoginDevMiddleware.php\u0026line=19","ajax":false,"filename":"AutoLoginDevMiddleware.php","line":"19","path":"\\app\\Http\\Middleware\\AutoLoginDevMiddleware.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select * from `users` limit 1","modes":["explain"],"hash":"1dc8d49e0f5c3a9baeef78c310d4a3a178d2786ecb4eec219d204233273157db"},"start_percent":0,"width_percent":12.247},{"sql":"select count(*) as aggregate from `contacts` where `contacts`.`deleted_at` is null","type":"query","params":[],"backtrace":[{"index":19,"namespace":null,"name":"app\/Http\/Controllers\/Web\/HubController.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Controllers\\Web\\HubController.php","line":18},{"index":20,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/ControllerDispatcher.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\ControllerDispatcher.php","line":47},{"index":21,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Route.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Route.php","line":266},{"index":22,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Route.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Route.php","line":212},{"index":23,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Router.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Router.php","line":808}],"start":1782184139.653744,"duration":0.01061,"duration_str":"10.61ms","slow":false,"filename":"HubController.php:18","source":{"index":19,"namespace":null,"name":"app\/Http\/Controllers\/Web\/HubController.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Controllers\\Web\\HubController.php","line":18},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FHttp%2FControllers%2FWeb%2FHubController.php\u0026line=18","ajax":false,"filename":"HubController.php","line":"18","path":"\\app\\Http\\Controllers\\Web\\HubController.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select count(*) as aggregate from `contacts` where `contacts`.`deleted_at` is null","modes":["explain"],"hash":"34885a12e74a98fe37591da53a84b1fda144dd2174867813762e7d09569bfdde"},"start_percent":12.247,"width_percent":28.248},{"sql":"select count(*) as aggregate from `workflow_executions` where `status` in (\u0027running\u0027, \u0027pending\u0027)","type":"query","params":["running","pending"],"backtrace":[{"index":16,"namespace":null,"name":"app\/Http\/Controllers\/Web\/HubController.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Controllers\\Web\\HubController.php","line":19},{"index":17,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/ControllerDispatcher.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\ControllerDispatcher.php","line":47},{"index":18,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Route.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Route.php","line":266},{"index":19,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Route.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Route.php","line":212},{"index":20,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Router.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Router.php","line":808}],"start":1782184139.6726272,"duration":0.00555,"duration_str":"5.55ms","slow":false,"filename":"HubController.php:19","source":{"index":16,"namespace":null,"name":"app\/Http\/Controllers\/Web\/HubController.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Controllers\\Web\\HubController.php","line":19},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FHttp%2FControllers%2FWeb%2FHubController.php\u0026line=19","ajax":false,"filename":"HubController.php","line":"19","path":"\\app\\Http\\Controllers\\Web\\HubController.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select count(*) as aggregate from `workflow_executions` where `status` in (?, ?)","modes":["explain"],"hash":"327b4a64274641749f8b82cbcfeaad1378ac7cecff5a4af67f94e2ef85482d16"},"start_percent":40.495,"width_percent":14.776},{"sql":"select count(*) as aggregate from `agents`","type":"query","params":[],"backtrace":[{"index":19,"namespace":null,"name":"app\/Http\/Controllers\/Web\/HubController.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Controllers\\Web\\HubController.php","line":20},{"index":20,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/ControllerDispatcher.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\ControllerDispatcher.php","line":47},{"index":21,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Route.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Route.php","line":266},{"index":22,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Route.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Route.php","line":212},{"index":23,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Router.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Router.php","line":808}],"start":1782184139.682542,"duration":0.0024300000000000003,"duration_str":"2.43ms","slow":false,"filename":"HubController.php:20","source":{"index":19,"namespace":null,"name":"app\/Http\/Controllers\/Web\/HubController.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Controllers\\Web\\HubController.php","line":20},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FHttp%2FControllers%2FWeb%2FHubController.php\u0026line=20","ajax":false,"filename":"HubController.php","line":"20","path":"\\app\\Http\\Controllers\\Web\\HubController.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select count(*) as aggregate from `agents`","modes":["explain"],"hash":"ec066691d2239c1cee2a6c0172e0b52beba61fa58c2c33647d72d0c35f9efe7f"},"start_percent":55.272,"width_percent":6.47},{"sql":"select * from `contacts` where `contacts`.`deleted_at` is null order by `updated_at` desc limit 6","type":"query","params":[],"backtrace":[{"index":15,"namespace":null,"name":"app\/Http\/Controllers\/Web\/HubController.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Controllers\\Web\\HubController.php","line":30},{"index":16,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/ControllerDispatcher.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\ControllerDispatcher.php","line":47},{"index":17,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Route.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Route.php","line":266},{"index":18,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Route.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Route.php","line":212},{"index":19,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Router.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Router.php","line":808}],"start":1782184139.697093,"duration":0.00233,"duration_str":"2.33ms","slow":false,"filename":"HubController.php:30","source":{"index":15,"namespace":null,"name":"app\/Http\/Controllers\/Web\/HubController.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Controllers\\Web\\HubController.php","line":30},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FHttp%2FControllers%2FWeb%2FHubController.php\u0026line=30","ajax":false,"filename":"HubController.php","line":"30","path":"\\app\\Http\\Controllers\\Web\\HubController.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select * from `contacts` where `contacts`.`deleted_at` is null order by `updated_at` desc limit 6","modes":["explain"],"hash":"1f551b1929468bbdc2ce4206462a9bb4a772b94a32e1ca28cac9303332e2f50d"},"start_percent":61.741,"width_percent":6.203},{"sql":"select * from `agents` order by `status` asc limit 6","type":"query","params":[],"backtrace":[{"index":15,"namespace":null,"name":"app\/Http\/Controllers\/Web\/HubController.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Controllers\\Web\\HubController.php","line":33},{"index":16,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/ControllerDispatcher.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\ControllerDispatcher.php","line":47},{"index":17,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Route.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Route.php","line":266},{"index":18,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Route.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Route.php","line":212},{"index":19,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Router.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Router.php","line":808}],"start":1782184139.70295,"duration":0.00225,"duration_str":"2.25ms","slow":false,"filename":"HubController.php:33","source":{"index":15,"namespace":null,"name":"app\/Http\/Controllers\/Web\/HubController.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Controllers\\Web\\HubController.php","line":33},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FHttp%2FControllers%2FWeb%2FHubController.php\u0026line=33","ajax":false,"filename":"HubController.php","line":"33","path":"\\app\\Http\\Controllers\\Web\\HubController.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select * from `agents` order by `status` asc limit 6","modes":["explain"],"hash":"09988faa4c71fe97689eb320b56c77daf9b62a69a2d29195d83a3106db8cbc93"},"start_percent":67.945,"width_percent":5.99},{"sql":"select * from `workflow_schedules` where `is_active` = 1 order by `next_run_at` asc limit 5","type":"query","params":[1],"backtrace":[{"index":15,"namespace":null,"name":"app\/Http\/Controllers\/Web\/HubController.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Controllers\\Web\\HubController.php","line":41},{"index":16,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/ControllerDispatcher.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\ControllerDispatcher.php","line":47},{"index":17,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Route.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Route.php","line":266},{"index":18,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Route.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Route.php","line":212},{"index":19,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Routing\/Router.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Router.php","line":808}],"start":1782184139.7121458,"duration":0.00234,"duration_str":"2.34ms","slow":false,"filename":"HubController.php:41","source":{"index":15,"namespace":null,"name":"app\/Http\/Controllers\/Web\/HubController.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Http\\Controllers\\Web\\HubController.php","line":41},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FHttp%2FControllers%2FWeb%2FHubController.php\u0026line=41","ajax":false,"filename":"HubController.php","line":"41","path":"\\app\\Http\\Controllers\\Web\\HubController.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select * from `workflow_schedules` where `is_active` = ? order by `next_run_at` asc limit 5","modes":["explain"],"hash":"be1a943e080aeea6d8270b3452b164ba8d7faa2b2ef581dc897adaed4211b317"},"start_percent":73.935,"width_percent":6.23},{"sql":"select exists (select 1 from information_schema.tables where table_schema = \u0027nex_db\u0027 and table_name = \u0027workflow_event_triggers\u0027 and table_type in (\u0027BASE TABLE\u0027, \u0027SYSTEM VERSIONED\u0027)) as `exists`","type":"query","params":[],"backtrace":[{"index":13,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":20},{"index":14,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":107},{"index":18,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/Concerns\/ManagesEvents.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\Concerns\\ManagesEvents.php","line":191},{"index":19,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/Factory.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\Factory.php","line":161},{"index":22,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Foundation\/helpers.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\helpers.php","line":1062}],"start":1782184139.760932,"duration":0.001,"duration_str":"1ms","slow":false,"filename":"WorkflowEventTriggerService.php:20","source":{"index":13,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":20},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FServices%2FWorkflows%2FWorkflowEventTriggerService.php\u0026line=20","ajax":false,"filename":"WorkflowEventTriggerService.php","line":"20","path":"\\app\\Services\\Workflows\\WorkflowEventTriggerService.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select exists (select 1 from information_schema.tables where table_schema = \u0027nex_db\u0027 and table_name = \u0027workflow_event_triggers\u0027 and table_type in (\u0027BASE TABLE\u0027, \u0027SYSTEM VERSIONED\u0027)) as `exists`","modes":["explain"],"hash":"9296ad37718276db6ce7160eeefddc3378a1ca6fb33fffe496dabcc0133a1ceb"},"start_percent":80.165,"width_percent":2.662},{"sql":"select * from `workflow_event_triggers` where `event_name` = \u0027creating: hubs.dashboard\u0027 and `is_active` = 1","type":"query","params":["creating: hubs.dashboard",1],"backtrace":[{"index":15,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":27},{"index":16,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":107},{"index":20,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/Concerns\/ManagesEvents.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\Concerns\\ManagesEvents.php","line":191},{"index":21,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/Factory.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\Factory.php","line":161},{"index":24,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/Foundation\/helpers.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\helpers.php","line":1062}],"start":1782184139.768987,"duration":0.00088,"duration_str":"880\u03bcs","slow":false,"filename":"WorkflowEventTriggerService.php:27","source":{"index":15,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":27},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FServices%2FWorkflows%2FWorkflowEventTriggerService.php\u0026line=27","ajax":false,"filename":"WorkflowEventTriggerService.php","line":"27","path":"\\app\\Services\\Workflows\\WorkflowEventTriggerService.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select * from `workflow_event_triggers` where `event_name` = ? and `is_active` = ?","modes":["explain"],"hash":"a24d6563ba1c5af10f05c625fdee87194643ea4119bc89aaee2434e5ddcb86ee"},"start_percent":82.827,"width_percent":2.343},{"sql":"select exists (select 1 from information_schema.tables where table_schema = \u0027nex_db\u0027 and table_name = \u0027workflow_event_triggers\u0027 and table_type in (\u0027BASE TABLE\u0027, \u0027SYSTEM VERSIONED\u0027)) as `exists`","type":"query","params":[],"backtrace":[{"index":13,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":20},{"index":14,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":107},{"index":18,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/Concerns\/ManagesEvents.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\Concerns\\ManagesEvents.php","line":178},{"index":19,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/View.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\View.php","line":190},{"index":20,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/View.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\View.php","line":161}],"start":1782184139.777261,"duration":0.00109,"duration_str":"1.09ms","slow":false,"filename":"WorkflowEventTriggerService.php:20","source":{"index":13,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":20},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FServices%2FWorkflows%2FWorkflowEventTriggerService.php\u0026line=20","ajax":false,"filename":"WorkflowEventTriggerService.php","line":"20","path":"\\app\\Services\\Workflows\\WorkflowEventTriggerService.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select exists (select 1 from information_schema.tables where table_schema = \u0027nex_db\u0027 and table_name = \u0027workflow_event_triggers\u0027 and table_type in (\u0027BASE TABLE\u0027, \u0027SYSTEM VERSIONED\u0027)) as `exists`","modes":["explain"],"hash":"9296ad37718276db6ce7160eeefddc3378a1ca6fb33fffe496dabcc0133a1ceb"},"start_percent":85.17,"width_percent":2.902},{"sql":"select * from `workflow_event_triggers` where `event_name` = \u0027composing: hubs.dashboard\u0027 and `is_active` = 1","type":"query","params":["composing: hubs.dashboard",1],"backtrace":[{"index":15,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":27},{"index":16,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":107},{"index":20,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/Concerns\/ManagesEvents.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\Concerns\\ManagesEvents.php","line":178},{"index":21,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/View.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\View.php","line":190},{"index":22,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/View.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\View.php","line":161}],"start":1782184139.783427,"duration":0.0008100000000000001,"duration_str":"810\u03bcs","slow":false,"filename":"WorkflowEventTriggerService.php:27","source":{"index":15,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":27},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FServices%2FWorkflows%2FWorkflowEventTriggerService.php\u0026line=27","ajax":false,"filename":"WorkflowEventTriggerService.php","line":"27","path":"\\app\\Services\\Workflows\\WorkflowEventTriggerService.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select * from `workflow_event_triggers` where `event_name` = ? and `is_active` = ?","modes":["explain"],"hash":"660479280bba5b648a313d4a365519d8ffd31d7f949b16aee249043959e2e272"},"start_percent":88.072,"width_percent":2.157},{"sql":"select exists (select 1 from information_schema.tables where table_schema = \u0027nex_db\u0027 and table_name = \u0027workflow_event_triggers\u0027 and table_type in (\u0027BASE TABLE\u0027, \u0027SYSTEM VERSIONED\u0027)) as `exists`","type":"query","params":[],"backtrace":[{"index":13,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":20},{"index":14,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":107},{"index":18,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/Concerns\/ManagesEvents.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\Concerns\\ManagesEvents.php","line":191},{"index":19,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/Factory.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\Factory.php","line":161},{"index":22,"namespace":"view","name":"hubs.dashboard","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\resources\\views\/hubs\/dashboard.blade.php","line":616}],"start":1782184139.802648,"duration":0.00102,"duration_str":"1.02ms","slow":false,"filename":"WorkflowEventTriggerService.php:20","source":{"index":13,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":20},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FServices%2FWorkflows%2FWorkflowEventTriggerService.php\u0026line=20","ajax":false,"filename":"WorkflowEventTriggerService.php","line":"20","path":"\\app\\Services\\Workflows\\WorkflowEventTriggerService.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select exists (select 1 from information_schema.tables where table_schema = \u0027nex_db\u0027 and table_name = \u0027workflow_event_triggers\u0027 and table_type in (\u0027BASE TABLE\u0027, \u0027SYSTEM VERSIONED\u0027)) as `exists`","modes":["explain"],"hash":"9296ad37718276db6ce7160eeefddc3378a1ca6fb33fffe496dabcc0133a1ceb"},"start_percent":90.229,"width_percent":2.716},{"sql":"select * from `workflow_event_triggers` where `event_name` = \u0027creating: layouts.app\u0027 and `is_active` = 1","type":"query","params":["creating: layouts.app",1],"backtrace":[{"index":15,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":27},{"index":16,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":107},{"index":20,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/Concerns\/ManagesEvents.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\Concerns\\ManagesEvents.php","line":191},{"index":21,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/Factory.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\Factory.php","line":161},{"index":24,"namespace":"view","name":"hubs.dashboard","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\resources\\views\/hubs\/dashboard.blade.php","line":616}],"start":1782184139.809779,"duration":0.00108,"duration_str":"1.08ms","slow":false,"filename":"WorkflowEventTriggerService.php:27","source":{"index":15,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":27},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FServices%2FWorkflows%2FWorkflowEventTriggerService.php\u0026line=27","ajax":false,"filename":"WorkflowEventTriggerService.php","line":"27","path":"\\app\\Services\\Workflows\\WorkflowEventTriggerService.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select * from `workflow_event_triggers` where `event_name` = ? and `is_active` = ?","modes":["explain"],"hash":"293f183e5d8a8b7963f56d77c9a492975a2bcf9fc120352d5bf47441274ddb71"},"start_percent":92.945,"width_percent":2.875},{"sql":"select exists (select 1 from information_schema.tables where table_schema = \u0027nex_db\u0027 and table_name = \u0027workflow_event_triggers\u0027 and table_type in (\u0027BASE TABLE\u0027, \u0027SYSTEM VERSIONED\u0027)) as `exists`","type":"query","params":[],"backtrace":[{"index":13,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":20},{"index":14,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":107},{"index":18,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/Concerns\/ManagesEvents.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\Concerns\\ManagesEvents.php","line":178},{"index":19,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/View.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\View.php","line":190},{"index":20,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/View.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\View.php","line":161}],"start":1782184139.813859,"duration":0.00086,"duration_str":"860\u03bcs","slow":false,"filename":"WorkflowEventTriggerService.php:20","source":{"index":13,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":20},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FServices%2FWorkflows%2FWorkflowEventTriggerService.php\u0026line=20","ajax":false,"filename":"WorkflowEventTriggerService.php","line":"20","path":"\\app\\Services\\Workflows\\WorkflowEventTriggerService.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select exists (select 1 from information_schema.tables where table_schema = \u0027nex_db\u0027 and table_name = \u0027workflow_event_triggers\u0027 and table_type in (\u0027BASE TABLE\u0027, \u0027SYSTEM VERSIONED\u0027)) as `exists`","modes":["explain"],"hash":"9296ad37718276db6ce7160eeefddc3378a1ca6fb33fffe496dabcc0133a1ceb"},"start_percent":95.82,"width_percent":2.29},{"sql":"select * from `workflow_event_triggers` where `event_name` = \u0027composing: layouts.app\u0027 and `is_active` = 1","type":"query","params":["composing: layouts.app",1],"backtrace":[{"index":15,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":27},{"index":16,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":107},{"index":20,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/Concerns\/ManagesEvents.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\Concerns\\ManagesEvents.php","line":178},{"index":21,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/View.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\View.php","line":190},{"index":22,"namespace":null,"name":"vendor\/laravel\/framework\/src\/Illuminate\/View\/View.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\vendor\\laravel\\framework\\src\\Illuminate\\View\\View.php","line":161}],"start":1782184139.818849,"duration":0.0007099999999999999,"duration_str":"710\u03bcs","slow":false,"filename":"WorkflowEventTriggerService.php:27","source":{"index":15,"namespace":null,"name":"app\/Services\/Workflows\/WorkflowEventTriggerService.php","file":"C:\\Users\\hedra\\Desktop\\Sourcecode\\NexusV2\\Nexus-backend\\app\\Services\\Workflows\\WorkflowEventTriggerService.php","line":27},"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FServices%2FWorkflows%2FWorkflowEventTriggerService.php\u0026line=27","ajax":false,"filename":"WorkflowEventTriggerService.php","line":"27","path":"\\app\\Services\\Workflows\\WorkflowEventTriggerService.php"},"connection":"nex_db","explain":{"url":"http:\/\/127.0.0.1:8000\/_debugbar\/queries\/explain","driver":"mysql","connection":"mysql","query":"select * from `workflow_event_triggers` where `event_name` = ? and `is_active` = ?","modes":["explain"],"hash":"e503d076dad4b6a532424fcc6eaa38b14c0137bcde445ed2ed9b049283ca0b61"},"start_percent":98.11,"width_percent":1.89}]},"models":{"data":{"App\\Models\\Contact":{"retrieved":6,"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FModels%2FContact.php\u0026line=1","ajax":false,"filename":"Contact.php","line":"?","path":"\\app\\Models\\Contact.php"}},"App\\Models\\Agent":{"retrieved":6,"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FModels%2FAgent.php\u0026line=1","ajax":false,"filename":"Agent.php","line":"?","path":"\\app\\Models\\Agent.php"}},"App\\Models\\User":{"retrieved":1,"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FModels%2FUser.php\u0026line=1","ajax":false,"filename":"User.php","line":"?","path":"\\app\\Models\\User.php"}},"App\\Models\\WorkflowSchedule":{"retrieved":1,"xdebug_link":{"url":"phpstorm:\/\/open?file=C%3A%2FUsers%2Fhedra%2FDesktop%2FSourcecode%2FNexusV2%2FNexus-backend%2Fapp%2FModels%2FWorkflowSchedule.php\u0026line=1","ajax":false,"filename":"WorkflowSchedule.php","line":"?","path":"\\app\\Models\\WorkflowSchedule.php"}}},"count":14,"key_map":{"retrieved":"Retrieved","created":"Created","updated":"Updated","deleted":"Deleted"},"is_counter":true,"badges":{"retrieved":14}},"symfonymailer_mails":{"count":0,"mails":[]},"gate":{"count":0,"messages":[]},"jobs":{"data":[],"count":0,"key_map":{"value":"Count"},"is_counter":true},"http_client":{"nb_requests":0,"requests":[]},"time":{"count":7,"start":1782184139.033099,"end":1782184139.849752,"duration":0.8166530132293701,"duration_str":"817ms","measures":[{"label":"Booting","start":1782184139.033099,"relative_start":0,"end":1782184139.330136,"relative_end":1782184139.330136,"duration":0.29703712463378906,"duration_str":"297ms","memory":0,"memory_str":"0B","params":[],"collector":"time","group":null},{"label":"Application","start":1782184139.330159,"relative_start":0.2970600128173828,"end":1782184139.849754,"relative_end":2.1457672119140625e-6,"duration":0.5195951461791992,"duration_str":"520ms","memory":0,"memory_str":"0B","params":[],"collector":"time","group":null},{"label":"Routing","start":1782184139.614957,"relative_start":0.5818581581115723,"end":1782184139.627477,"relative_end":1782184139.627477,"duration":0.01251983642578125,"duration_str":"12.52ms","memory":0,"memory_str":"0B","params":[],"collector":null,"group":null},{"label":"Preparing Response","start":1782184139.771913,"relative_start":0.738814115524292,"end":1782184139.826501,"relative_end":1782184139.826501,"duration":0.05458784103393555,"duration_str":"54.59ms","memory":0,"memory_str":"0B","params":[],"collector":null,"group":null},{"label":"hubs.dashboard","start":1782184139.776701,"relative_start":0.7436020374298096,"end":1782184139.776701,"relative_end":1782184139.776701,"duration":0,"duration_str":"0\u03bcs","memory":0,"memory_str":"0B","params":[],"collector":"views","group":"Views"},{"label":"layouts.app","start":1782184139.813218,"relative_start":0.7801191806793213,"end":1782184139.813218,"relative_end":1782184139.813218,"duration":0,"duration_str":"0\u03bcs","memory":0,"memory_str":"0B","params":[],"collector":"views","group":"Views"},{"label":"Preparing Response","start":1782184139.832199,"relative_start":0.7991001605987549,"end":1782184139.832312,"relative_end":1782184139.832312,"duration":0.00011301040649414062,"duration_str":"113\u03bcs","memory":0,"memory_str":"0B","params":[],"collector":null,"group":null}]},"cache":{"count":4,"start":1782184139.032782,"end":1782184139.84977,"duration":0.8169879913330078,"duration_str":"817ms","measures":[{"label":"missed\ttelescope:dump-watcher","start":1782184139.350058,"relative_start":0.3172760009765625,"end":1782184139.365016,"relative_end":1782184139.365016,"duration":0.014957904815673828,"duration_str":"14.96ms","memory":0,"memory_str":"0B","params":{"storeName":"redis","key":"telescope:dump-watcher","tags":[]},"collector":null,"group":null},{"label":"missed\ttelescope:pause-recording","start":1782184139.375262,"relative_start":0.342479944229126,"end":1782184139.377118,"relative_end":1782184139.377118,"duration":0.001856088638305664,"duration_str":"1.86ms","memory":0,"memory_str":"0B","params":{"storeName":"redis","key":"telescope:pause-recording","tags":[]},"collector":null,"group":null},{"label":"missed\ttSvOy29ixS9zK0L9swX9U7JxI6EhvSLjUTbp1z9I","start":1782184139.637872,"relative_start":0.6050899028778076,"end":1782184139.643891,"relative_end":1782184139.643891,"duration":0.006019115447998047,"duration_str":"6.02ms","memory":0,"memory_str":"0B","params":{"storeName":"redis","key":"tSvOy29ixS9zK0L9swX9U7JxI6EhvSLjUTbp1z9I","tags":[]},"collector":null,"group":null},{"label":"written\ttSvOy29ixS9zK0L9swX9U7JxI6EhvSLjUTbp1z9I","start":1782184139.827926,"relative_start":0.7951438426971436,"end":1782184139.830723,"relative_end":1782184139.830723,"duration":0.0027971267700195312,"duration_str":"2.8ms","memory":1616,"memory_str":"1.58KB","params":{"storeName":"redis","key":"tSvOy29ixS9zK0L9swX9U7JxI6EhvSLjUTbp1z9I","tags":[],"value":"a:3:{s:6:\u0022_token\u0022;s:40:\u0022EsaVxeGgx1xBM4isz8OV4rYVf0kU7DaitUHOWfkC\u0022;s:9:\u0022_previous\u0022;a:1:{s:3:\u0022url\u0022;s:35:\u0022http:\/\/127.0.0.1:8000\/hub\/dashboard\u0022;}s:6:\u0022_flash\u0022;a:2:{s:3:\u0022old\u0022;a:0:{}s:3:\u0022new\u0022;a:0:{}}}","seconds":7200},"collector":null,"group":null,"delete_url":"http:\/\/127.0.0.1:8000\/_debugbar\/cache\/tSvOy29ixS9zK0L9swX9U7JxI6EhvSLjUTbp1z9I?signature=9b5b0438a9e468aae66be089d62133d8c7bd435bc0b93bf7c61236900e466df8"}],"nb_measures":4}}, "01KVS77Q1ZBW6777MKA4HB7D8S", "", true);
+
+    window.PhpDebugBar.instance = phpdebugbar;
+    window.phpdebugbar = phpdebugbar;
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', renderDebugbar, { once: true });
+    } else {
+        renderDebugbar();
+    }
+})();
+</script></body>
+</html>

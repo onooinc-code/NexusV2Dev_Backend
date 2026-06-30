@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ContactMessage extends Model
 {
-    use SoftDeletes;
+    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+use SoftDeletes;
 
     protected $fillable = [
         'contact_id',
@@ -17,6 +18,7 @@ class ContactMessage extends Model
         'channel',
         'source',
         'external_id',
+        'waha_message_id',
         'sender_identifier',
         'sender_name',
         'direction',
@@ -34,6 +36,26 @@ class ContactMessage extends Model
         'raw_metadata' => 'array',
         'source_timestamp' => 'datetime',
     ];
+
+    public function getContentAttribute(): ?string
+    {
+        return $this->body;
+    }
+
+    public function setContentAttribute(?string $value): void
+    {
+        $this->attributes['body'] = $value;
+    }
+
+    public function getIsFromMeAttribute(): bool
+    {
+        return $this->direction === 'outbound';
+    }
+
+    public function setIsFromMeAttribute(bool $value): void
+    {
+        $this->attributes['direction'] = $value ? 'outbound' : 'inbound';
+    }
 
     public function contact(): BelongsTo
     {

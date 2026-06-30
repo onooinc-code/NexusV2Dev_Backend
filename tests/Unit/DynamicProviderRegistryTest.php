@@ -28,13 +28,12 @@ class DynamicProviderRegistryTest extends TestCase
 
         $apiKey = AIApiKey::factory()->create([
             'provider_id' => $provider->id,
-            'key_hash' => encrypt('test-key'),
+            'key_hash' => \Illuminate\Support\Facades\Crypt::encryptString('test-key'),
             'is_active' => true,
         ]);
 
-        $registry = new DynamicProviderRegistry(
-            $this->app->make(EncryptedApiKeyStorage::class)
-        );
+
+        $registry = $this->app->make(DynamicProviderRegistry::class);
 
         $result = $registry->getProvider($provider->id);
 
@@ -54,9 +53,7 @@ class DynamicProviderRegistryTest extends TestCase
             'is_active' => false,
         ]);
 
-        $registry = new DynamicProviderRegistry(
-            $this->app->make(EncryptedApiKeyStorage::class)
-        );
+        $registry = $this->app->make(DynamicProviderRegistry::class);
 
         $result = $registry->getProvider($provider->id);
 
@@ -66,9 +63,7 @@ class DynamicProviderRegistryTest extends TestCase
     /** @test */
     public function it_registers_a_new_provider()
     {
-        $registry = new DynamicProviderRegistry(
-            $this->app->make(EncryptedApiKeyStorage::class)
-        );
+        $registry = $this->app->make(DynamicProviderRegistry::class);
 
         $providerData = [
             'name' => 'New Provider',
@@ -123,9 +118,7 @@ class DynamicProviderRegistryTest extends TestCase
             ], 200, ['Content-Type' => 'application/json'])
         ]);
 
-        $registry = new DynamicProviderRegistry(
-            $this->app->make(EncryptedApiKeyStorage::class)
-        );
+        $registry = $this->app->make(DynamicProviderRegistry::class);
 
         $result = $registry->syncModels($provider->id);
 

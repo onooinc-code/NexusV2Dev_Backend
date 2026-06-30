@@ -2,11 +2,24 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 use App\Models\AiAuditTrail;
+use App\Models\User;
 
 class CostAnalyticsTest extends TestCase
 {
+    use RefreshDatabase;
+
+    private User $user;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->user = User::factory()->create();
+        $this->actingAs($this->user, 'sanctum');
+    }
+
     /** @test */
     public function forecast_endpoint_returns_valid_structure()
     {

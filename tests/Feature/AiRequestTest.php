@@ -3,16 +3,25 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\WithFaker;
 use Tests\TestCase;
 use App\Models\AIProvider;
 use App\Models\AIModel;
 use App\Models\AIApiKey;
 use App\Models\IntentRouting;
+use App\Models\User;
 
 class AiRequestTest extends TestCase
 {
     use RefreshDatabase;
+
+    private User $user;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->user = User::factory()->create();
+        $this->actingAs($this->user, 'sanctum');
+    }
 
     /** @test */
     public function it_handles_an_ai_request_via_intent_routing()
@@ -44,16 +53,17 @@ class AiRequestTest extends TestCase
         ]);
 
         // Create intent routing
-        $intent = IntentRouting::factory()->create([
+        $intent = IntentRouting::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
             'intent_name' => 'test-intent',
             'default_provider_id' => $provider->id,
             'default_model_id' => $model->id,
         ]);
 
         // Mock the HTTP response for AI generation
-        \Http::fake([
+        \Illuminate\Support\Facades\Http::fake([
             // Mock the generation endpoint
-            '*' => \Http::response([
+            '*' => \Illuminate\Support\Facades\Http::response([
                 'choices' => [
                     [
                         'message' => [
@@ -152,7 +162,8 @@ class AiRequestTest extends TestCase
         ]);
 
         // Create intent routing with fallback
-        $intent = IntentRouting::factory()->create([
+        $intent = IntentRouting::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
             'intent_name' => 'test-intent',
             'default_provider_id' => $primaryProvider->id,
             'fallback_provider_id' => $fallbackProvider->id,
@@ -161,11 +172,11 @@ class AiRequestTest extends TestCase
         ]);
 
         // Mock HTTP responses - primary fails, fallback succeeds
-        \Http::fake([
+        \Illuminate\Support\Facades\Http::fake([
             // Primary provider fails
-            'https://api.primary.com*' => \Http::response('Internal Server Error', 500),
+            'https://api.primary.com*' => \Illuminate\Support\Facades\Http::response('Internal Server Error', 500),
             // Fallback provider succeeds
-            'https://api.fallback.com*' => \Http::response([
+            'https://api.fallback.com*' => \Illuminate\Support\Facades\Http::response([
                 'choices' => [
                     [
                         'message' => [

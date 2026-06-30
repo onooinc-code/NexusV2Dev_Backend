@@ -42,19 +42,14 @@ class AiModelController extends Controller
     {
         $query = AIModel::query();
 
-        if ($request->has('provider')) {
-            $query->where('provider', $request->provider);
-        }
-
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
+        if ($request->has('provider_id')) {
+            $query->where('provider_id', $request->provider_id);
         }
 
         if ($request->has('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                $q->where('name', 'like', "%{$search}%");
             });
         }
 
@@ -67,12 +62,10 @@ class AiModelController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            'provider' => 'required|string',
-            'external_id' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'capabilities' => 'nullable|array',
-            'metadata' => 'nullable|array',
-            'status' => 'nullable|string|in:active,inactive,deprecated',
+            'provider_id' => 'required|uuid|exists:ai_providers,id',
+            'context_window' => 'nullable|integer',
+            'input_cost_per_m' => 'nullable|numeric',
+            'output_cost_per_m' => 'nullable|numeric',
         ]);
 
         if ($validator->fails()) {
@@ -87,7 +80,7 @@ class AiModelController extends Controller
             'related_id' => $model->id,
             'related_type' => 'App\Models\AIModel',
             'user_id' => $request->user()?->id,
-            'context' => ['name' => $model->name, 'provider' => $model->provider],
+            'context' => ['name' => $model->name, 'provider_id' => $model->provider_id],
         ]);
 
         return response()->json([
@@ -108,10 +101,10 @@ class AiModelController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
-            'description' => 'nullable|string',
-            'capabilities' => 'nullable|array',
-            'metadata' => 'nullable|array',
-            'status' => 'nullable|string|in:active,inactive,deprecated',
+            'provider_id' => 'sometimes|uuid|exists:ai_providers,id',
+            'context_window' => 'nullable|integer',
+            'input_cost_per_m' => 'nullable|numeric',
+            'output_cost_per_m' => 'nullable|numeric',
         ]);
 
         if ($validator->fails()) {
@@ -165,10 +158,10 @@ class AiModelController extends Controller
             'related_id' => $model->id,
             'related_type' => 'App\Models\AIModel',
             'user_id' => $request->user()?->id,
-            'context' => ['model' => $model->name, 'provider' => $provider],
+            'context' => ['model' => $model->name, 'provider' => $provider?->name],
         ]);
 
-        $apiKey = ApiKey::where('provider', $provider)
+        $apiKey = ApiKey::where('provider', $provider?->name)
             ->where('type', 'ai_provider')
             ->where('is_active', true)
             ->first()?->key;
@@ -179,17 +172,17 @@ class AiModelController extends Controller
                 'type' => 'test',
                 'related_id' => $model->id,
                 'related_type' => 'App\Models\AIModel',
-                'context' => ['provider' => $provider],
+                'context' => ['provider' => $provider?->name],
             ]);
 
             return response()->json([
                 'success' => false,
-                'error' => "No active API key found for provider: {$provider}",
+                'error' => "No active API key found for provider: " . ($provider?->name ?? 'unknown'),
             ], 400);
         }
 
-        $providerInstance = $this->resolveProvider($provider, $apiKey);
-        $externalId = $model->external_id ?? $model->name;
+        $providerInstance = $this->resolveProvider($provider->id, $apiKey);
+        $externalId = $model->name;
 
         $testRequest = [
             'model' => $externalId,
@@ -216,7 +209,7 @@ class AiModelController extends Controller
             'user_id' => $request->user()?->id,
             'context' => [
                 'model' => $model->name,
-                'provider' => $provider,
+                'provider' => $provider?->name,
                 'success' => $result['success'] ?? false,
                 'duration_ms' => $durationMs,
             ],

@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ContactAnalysisRun extends Model
 {
-    protected $fillable = [
+    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+protected $fillable = [
         'contact_id',
         'status',
         'options',

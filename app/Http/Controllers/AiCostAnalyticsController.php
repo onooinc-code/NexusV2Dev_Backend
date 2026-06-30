@@ -87,7 +87,6 @@ class AiCostAnalyticsController extends Controller
             ]);
         } else {
             DB::table('cost_budgets')->insert([
-                'id' => (string) \Illuminate\Support\Str::uuid(),
                 'workspace_id' => $workspaceId,
                 'monthly_limit' => $request->monthly_limit,
                 'is_active' => true,

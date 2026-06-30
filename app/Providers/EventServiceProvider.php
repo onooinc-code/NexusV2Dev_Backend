@@ -30,6 +30,32 @@ class EventServiceProvider extends ServiceProvider
             LogDeadLetterTask::class,
         ],
         // TaskStatusChangedEvent can be handled by adding listeners as needed
+        \App\Events\ContactImportCompleted::class => [
+            \App\Listeners\HandleContactImportCompleted::class,
+        ],
+        \App\Events\ContactAnalysisCompleted::class => [
+            \App\Listeners\HandleContactAnalysisCompleted::class,
+        ],
+        \App\Events\ContactIdentityConflictDetected::class => [
+            \App\Listeners\HandleContactIdentityConflict::class,
+        ],
+        \App\Events\ContactReplyModeChanged::class => [
+            \App\Listeners\HandleContactReplyModeChanged::class,
+        ],
+        // HedraSoul Hub Events (13 broadcasting events)
+        \App\Events\HedraSoul\HedraSoulMessageCreated::class => [],
+        \App\Events\HedraSoul\HedraSoulMessageProcessed::class => [],
+        \App\Events\HedraSoul\HedraSoulCommandDetected::class => [],
+        \App\Events\HedraSoul\HedraSoulCommandExecuted::class => [],
+        \App\Events\HedraSoul\HedraSoulApprovalRequested::class => [],
+        \App\Events\HedraSoul\HedraSoulApprovalApproved::class => [],
+        \App\Events\HedraSoul\HedraSoulApprovalRejected::class => [],
+        \App\Events\HedraSoul\HedraSoulInstructionChanged::class => [],
+        \App\Events\HedraSoul\HedraSoulModelChanged::class => [],
+        \App\Events\HedraSoul\HedraSoulMemorySuggested::class => [],
+        \App\Events\HedraSoul\HedraSoulMemoryApproved::class => [],
+        \App\Events\HedraSoul\HedraSoulAutonomyChanged::class => [],
+        \App\Events\HedraSoul\HedraSoulNotificationCreated::class => [],
     ];
 
     /**
@@ -42,7 +68,7 @@ class EventServiceProvider extends ServiceProvider
         // Handle task status changes from the Task model
         \App\Models\AgentTask::updated(function ($task) {
             // Check if status changed
-            if ($task->isDirty('status')) {
+            if ($task->wasChanged('status')) {
                 event(new \App\Events\TaskStatusChangedEvent(
                     $task,
                     $task->getOriginal('status'),

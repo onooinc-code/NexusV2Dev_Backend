@@ -24,7 +24,7 @@ class ContactImportController extends Controller
             'format' => ['required', Rule::in(['txt', 'json'])],
             'content' => ['nullable', 'string'],
             'timezone' => ['nullable', 'string'],
-            'file' => ['nullable', 'file'],
+            'file' => ['nullable', 'file', 'max:51200'],
         ]);
 
         $contact = Contact::findOrFail($data['contact_id']);
@@ -68,21 +68,25 @@ class ContactImportController extends Controller
             'limit' => $data['limit'] ?? 100
         ]);
 
-        $result = $this->importPipeline->commit(
-            $contact,
-            'whatsapp_waha',
+        $batch = ContactImportBatch::create([
+            'contact_id' => $contact->id,
+            'source' => 'whatsapp_waha',
+            'status' => 'queued',
+            'total_records' => 0,
+            'imported_records' => 0,
+            'failed_records' => 0,
+        ]);
+
+        \App\Jobs\ImportContactMessagesJob::dispatch(
+            $batch,
             $content,
             'api',
             'UTC'
         );
 
-        if (! $result['success']) {
-            return response()->json(['error' => $result['error']], 422);
-        }
+        event(new \App\Events\ContactImportStarted($contact, $batch));
 
-        event(new ContactImportCompleted($contact, $result['messages_imported'] ?? $result['batch']->messages()->count(), 'whatsapp_waha'));
-
-        return response()->json(['data' => $result]);
+        return response()->json(['data' => ['batch_id' => $batch->id, 'status' => 'queued']], 202);
     }
 
     protected function importMessages(Request $request, string $source)
@@ -92,27 +96,31 @@ class ContactImportController extends Controller
             'format' => ['required', Rule::in(['txt', 'json'])],
             'content' => ['nullable', 'string'],
             'timezone' => ['nullable', 'string'],
-            'file' => ['nullable', 'file'],
+            'file' => ['nullable', 'file', 'max:51200'],
         ]);
 
         $contact = Contact::findOrFail($data['contact_id']);
         $content = $this->resolveContent($request, $data['content'] ?? null);
 
-        $result = $this->importPipeline->commit(
-            $contact,
-            $source,
+        $batch = ContactImportBatch::create([
+            'contact_id' => $contact->id,
+            'source' => $source,
+            'status' => 'queued',
+            'total_records' => 0,
+            'imported_records' => 0,
+            'failed_records' => 0,
+        ]);
+
+        \App\Jobs\ImportContactMessagesJob::dispatch(
+            $batch,
             $content,
             $data['format'],
             $data['timezone'] ?? 'UTC'
         );
 
-        if (! $result['success']) {
-            return response()->json(['error' => $result['error']], 422);
-        }
+        event(new \App\Events\ContactImportStarted($contact, $batch));
 
-        event(new ContactImportCompleted($contact, $result['messages_imported'] ?? clone $result['batch']->messages()->count(), $source));
-
-        return response()->json(['data' => $result]);
+        return response()->json(['data' => ['batch_id' => $batch->id, 'status' => 'queued']], 202);
     }
 
     public function listBatches(Request $request)

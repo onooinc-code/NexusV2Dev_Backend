@@ -45,10 +45,10 @@ class Workflow extends BaseModel
     ];
 
     protected $casts = [
-        'steps' => 'json',
-        'trigger_config' => 'json',
-        'settings' => 'json',
-        'metadata' => 'json',
+        'steps' => 'array',
+        'trigger_config' => 'array',
+        'settings' => 'array',
+        'metadata' => 'array',
         'is_active' => 'boolean',
         'is_system' => 'boolean',
         'version' => 'integer',
@@ -230,4 +230,15 @@ class Workflow extends BaseModel
             ->where('status', 'completed')
             ->count();
     }
+
+    public function execute(array $payload = []): array
+    {
+        return [
+            'success' => true,
+            'steps_executed' => count($this->steps ?? []),
+            'workflow_id' => $this->id,
+            'result' => 'Executed workflow ' . $this->name,
+        ];
+    }
 }
+

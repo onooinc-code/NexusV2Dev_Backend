@@ -19,6 +19,11 @@ class ContactMemoryMaintenancePipeline
         try {
             $run->update(['status' => 'running', 'started_at' => now()]);
             
+            $contactId = $run->scope['contact_id'] ?? null;
+            $contact = $contactId ? Contact::find($contactId) : null;
+            
+            event(new \App\Events\ContactMemoryMaintenanceStarted($run, $contact));
+
             $operation = $run->operation;
             $scope = $run->scope ?? [];
             $contactId = $scope['contact_id'] ?? null;
@@ -131,6 +136,8 @@ class ContactMemoryMaintenancePipeline
                 'run_id' => $run->id,
                 'operation' => $operation
             ]);
+
+            event(new \App\Events\ContactMemoryMaintenanceCompleted($run, $contact ?? null));
 
         } catch (\Exception $e) {
             $run->update([

@@ -12,7 +12,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class TaskLog extends Model
 {
-    protected $table = 'task_logs';
+    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+protected $table = 'task_logs';
 
     protected $fillable = [
         'task_id',

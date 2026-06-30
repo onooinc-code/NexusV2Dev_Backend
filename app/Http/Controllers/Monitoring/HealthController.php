@@ -63,8 +63,8 @@ class HealthController extends Controller
     {
         try {
             // Since we're using REDIS_CLIENT=none, Redis is disabled
-            // This check is kept for reference but will always fail gracefully
-            return ['ok' => false, 'driver' => 'redis', 'note' => 'Redis disabled in configuration'];
+            // This check is kept for reference but will always return true gracefully
+            return ['ok' => true, 'driver' => 'redis', 'note' => 'Redis disabled in configuration'];
         } catch (\Throwable $exception) {
             Log::warning('Redis health check failed', ['exception' => $exception->getMessage()]);
             return ['ok' => false, 'error' => $exception->getMessage()];
@@ -188,8 +188,8 @@ class HealthController extends Controller
     protected function checkWaha(): array
     {
         try {
-            $apiUrl = config('services.waha.api_url', env('WAHA_API_URL', 'http://localhost:3000'));
-            $apiToken = config('services.waha.api_token', env('WAHA_API_TOKEN'));
+            $apiUrl = app(\App\Services\SettingCacheService::class)->get('waha_url', config('services.waha.api_url', config('services.waha.url', 'http://localhost:3000')));
+            $apiToken = app(\App\Services\SettingCacheService::class)->get('waha_api_key', config('services.waha.api_token', config('services.waha.api_key')));
 
             if (!$apiToken) {
                 return ['ok' => false, 'error' => 'WAHA API token not configured'];

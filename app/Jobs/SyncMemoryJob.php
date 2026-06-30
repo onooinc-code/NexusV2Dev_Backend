@@ -26,9 +26,9 @@ class SyncMemoryJob implements ShouldQueue
      * Create a new job instance.
      */
     public function __construct(
-        int $contactId,
+        $contactId,
         string $memoryType = 'all',
-        LogService $logService
+        ?LogService $logService = null
     ) {
         $this->contactId = $contactId;
         $this->memoryType = $memoryType;
