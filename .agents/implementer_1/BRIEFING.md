@@ -1,39 +1,34 @@
-# BRIEFING — 2026-06-24T19:21:04+03:00
+# BRIEFING - 2026-07-01T03:46:53Z
 
 ## Mission
-Fix AI model provider_id migration changes in tests (M3.2.2) for a Laravel 13 upgrade in Nexus-backend.
+Analyze the NexusV3 codebase (Admin, Agents, APIs, Contacts, Dashboard hubs) and generate highly detailed documentation for each hub in Documentation/The-Hubs/.
 
 ## 🔒 My Identity
-- Archetype: Implementer
+- Archetype: Subagent
 - Roles: implementer, qa, specialist
-- Working directory: c:\Users\hedra\Desktop\Sourcecode\NexusV2\Nexus-backend\.agents\implementer_1
-- Original parent: bd9ed7fe-2ee9-464a-86e2-aa86880d8fce
-- Milestone: M3.2.2
+- Working directory: c:\Users\hedra\Desktop\NexusV3\Project\Nexus\.agents\implementer_1
+- Original parent: 16951146-26ed-4608-a2df-9c102cd48b33
+- Milestone: Generate documentation for The Hubs
 
 ## 🔒 Key Constraints
-- CODE_ONLY network mode
-- Write genuine tests/code, no cheating
-- Follow solid principles and clean architecture
+- Must include Mermaid diagrams in HUB ARCHITECTURE.md and HUB DATA FLOW.md.
+- Must reference Laravel 13, Blade, Bootstrap 5.3.
+- Do not use run_command for curl/wget outside workspace.
+- Create specific 8 files in specific folders for each of the 5 hubs.
+- Overwrite existing stubs.
 
 ## Current Parent
-- Conversation ID: bd9ed7fe-2ee9-464a-86e2-aa86880d8fce
-- Updated: not yet
+- Conversation ID: 16951146-26ed-4608-a2df-9c102cd48b33
+- Updated: 2026-07-01T03:46:53Z
 
 ## Task Summary
-- **What to build**: Fix AI model `provider_id` migration changes in tests.
-- **Success criteria**: All tests passing that were broken by this migration change.
-- **Interface contracts**: TBD
-- **Code layout**: TBD
+- **What to build**: Markdown documentation for 5 hubs.
+- **Success criteria**: 8 detailed files per hub generated based on actual codebase.
+- **Interface contracts**: Documentation/The-Hubs/
+- **Code layout**: Documentation/The-Hubs/
 
 ## Key Decisions Made
-- Initializing task.
+- None yet
 
-## Change Tracker
-- **Files modified**: None
-- **Build status**: TBD
-- **Pending issues**: Run `php artisan test` to identify failures.
-
-## Quality Status
-- **Build/test result**: TBD
-- **Lint status**: TBD
-- **Tests added/modified**: None
+## Artifact Index
+- None yet

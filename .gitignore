@@ -25,3 +25,41 @@ public_html/hot
 /.kilocode
 /.continue
 /.sixth
+
+# Development scratch & temp files
+*.log
+logs/
+junit.xml
+report.xml
+test-results.xml
+tests_result.xml
+phpunit.xml
+*.phar
+*.zip
+models_dump.json
+*.txt
+*.ps1
+*.md.bak
+
+# Agent workspace files
+.agents/
+.archive/
+
+# One-off debug/test PHP scripts
+test*.php
+parse*.php
+dump.php
+fix_*.php
+find_*.php
+check_*.php
+create_*.php
+drop_*.php
+kill_*.php
+patch_*.php
+add_*.php
+analyze_*.php
+generate_models.php
+temp_*.php
+
+# Python doc generation scripts (dev artifact)
+generate_docs.py
